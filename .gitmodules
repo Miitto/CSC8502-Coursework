@@ -1,3 +1,6 @@
 [submodule "cmake/toolchain"]
 	path = cmake/toolchain
 	url = https://github.com/MarkSchofield/WindowsToolchain
+[submodule "engine"]
+	path = engine
+	url = https://github.com/Miitto/OpenGLEngine
