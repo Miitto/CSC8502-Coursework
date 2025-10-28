@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "codelldb",
+      "request": "launch",
+      "name": "Windows MSVC Engine",
+      "expressions": "native",
+      "program": "${workspaceFolder}/__output/windows-msvc-host/src/Debug/CSC8502-Coursework.exe"
+    }
+  ]
+}
