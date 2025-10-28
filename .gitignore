@@ -1,2 +1,5 @@
-__output/
+.cache/
+
 .vs/
+
+__output/
