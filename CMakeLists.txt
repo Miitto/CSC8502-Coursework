@@ -9,3 +9,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 project(CHANGE_ME VERSION 0.1.0 LANGUAGES CXX)
 
 add_subdirectory(src)
+add_subdirectory(engine)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE gl::gl)
