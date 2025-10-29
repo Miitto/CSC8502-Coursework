@@ -11,4 +11,3 @@ project(CSC8502-Coursework VERSION 0.1.0 LANGUAGES CXX)
 add_subdirectory(src)
 add_subdirectory(engine)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE gl::gl)
