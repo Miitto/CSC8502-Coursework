@@ -17,4 +17,5 @@ target_sources(${PROJECT_NAME}
  target_compile_definitions(${PROJECT_NAME}
    PRIVATE
    MESHDIR="${CMAKE_CURRENT_SOURCE_DIR}/../meshes/"
+   SHADERDIR="${CMAKE_CURRENT_SOURCE_DIR}/../shaders/"
  )

@@ -2,6 +2,28 @@
 
 #include <engine/mesh.hpp>
 #include <engine/scene_node.hpp>
+#include <gl/shaders.hpp>
+
+class MeshNode : public engine::scene::Node {
+  std::shared_ptr<engine::Mesh> mesh;
+  glm::vec4 color;
+
+public:
+  MeshNode(std::shared_ptr<engine::Mesh>& mesh, const glm::vec4& materialColor)
+      : engine::scene::Node(false, true), mesh(mesh), color(materialColor) {}
+
+  void draw() {
+    if (mesh) {
+      glUniform4f(1, color.x, color.y, color.z, color.w);
+      mesh->Draw();
+    }
+  }
+
+  void render(const engine::Camera& camera) override {
+    draw();
+    Node::render(camera);
+  }
+};
 
 class Robot : public engine::scene::Node {
 
@@ -11,9 +33,19 @@ public:
   virtual ~Robot() = default;
 
   void update(float dt) override;
+  virtual void render(const engine::Camera& camera) override;
+  inline bool isValid() const { return program.isValid(); }
 
 protected:
-  engine::scene::Node* head;
-  engine::scene::Node* leftArm;
-  engine::scene::Node* rightArm;
+  void writeModelMatrices();
+
+  gl::Program program;
+  gl::StorageBuffer modelMatsBuffer;
+
+  std::shared_ptr<MeshNode> body;
+  MeshNode* head;
+  MeshNode* leftArm;
+  MeshNode* rightArm;
+  MeshNode* leftLeg;
+  MeshNode* rightLeg;
 };

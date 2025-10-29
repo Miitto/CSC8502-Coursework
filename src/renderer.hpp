@@ -3,6 +3,7 @@
 #include <engine/app.hpp>
 #include <engine/camera.hpp>
 #include <engine/mesh.hpp>
+#include <gl/gl.hpp>
 #include <memory>
 
 class Renderer : public engine::App {
@@ -14,6 +15,7 @@ public:
 
 private:
   engine::PerspectiveCamera camera;
+
   std::shared_ptr<engine::Mesh> cubeMesh;
   engine::scene::Graph graph;
 };
