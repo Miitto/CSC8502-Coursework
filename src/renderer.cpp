@@ -3,6 +3,7 @@
 #include "Robot.h"
 #include "logger/logger.hpp"
 #include <filesystem>
+#include <imgui/imgui.h>
 
 Renderer::Renderer(int width, int height, const char title[])
     : engine::App(width, height, title),
@@ -32,10 +33,14 @@ void Renderer::render() {
   glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+  auto nodeLists = graph.BuildNodeLists(camera);
+
   {
     engine::gui::GuiWindow cameraFrame("Camera");
     camera.CameraDebugUI();
+    ImGui::Text("O: %d | T: %d", nodeLists.opaque.size(),
+                nodeLists.transparent.size());
   }
 
-  graph.render(camera);
+  nodeLists.render(camera);
 }

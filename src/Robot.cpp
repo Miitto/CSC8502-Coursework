@@ -26,46 +26,50 @@ Robot::Robot(std::shared_ptr<engine::Mesh>& cube)
                       gl::Buffer::Mapping::PERSISTENT |
                       gl::Buffer::Mapping::COHERENT);
 
-  body = std::make_shared<MeshNode>(cube, glm::vec4(0.8f, 0.2f, 0.2f, 1.0f));
+  body = std::make_shared<MeshNode>(cube, glm::vec4(0.8f, 0.2f, 0.2f, 1.0f),
+                                    false, false);
   body->SetScale({10, 15, 5});
   body->SetTransform(glm::translate(glm::mat4(1.0), glm::vec3(0, 35, 0)));
   body->SetBoundingRadius(15.0f);
 
-  auto head =
-      std::make_shared<MeshNode>(cube, glm::vec4(0.2f, 0.8f, 0.2f, 1.0f));
+  auto head = std::make_shared<MeshNode>(
+      cube, glm::vec4(0.2f, 0.8f, 0.2f, 1.0f), false, false);
   head->SetScale({5, 5, 5});
   head->SetTransform(glm::translate(glm::mat4(1.0), glm::vec3{0, 30, 0}));
   head->SetBoundingRadius(5.0f);
 
-  auto leftArm =
-      std::make_shared<MeshNode>(cube, glm::vec4(0.2f, 0.2f, 0.8f, 1.0f));
+  auto leftArm = std::make_shared<MeshNode>(
+      cube, glm::vec4(0.2f, 0.2f, 0.8f, 1.0f), false, false);
   leftArm->SetScale({3, -18, 3});
   leftArm->SetTransform(glm::translate(glm::mat4(1.0), glm::vec3{-12, 30, -1}));
   leftArm->SetBoundingRadius(18.0f);
 
-  auto rightArm =
-      std::make_shared<MeshNode>(cube, glm::vec4(0.2f, 0.2f, 0.8f, 1.0f));
+  auto rightArm = std::make_shared<MeshNode>(
+      cube, glm::vec4(0.2f, 0.2f, 0.8f, 1.0f), false, false);
   rightArm->SetScale({3, -18, 3});
   rightArm->SetTransform(glm::translate(glm::mat4(1.0), glm::vec3{12, 30, -1}));
   rightArm->SetBoundingRadius(18.0f);
 
-  auto leftLeg =
-      std::make_shared<MeshNode>(cube, glm::vec4(0.8f, 0.8f, 0.2f, 1.0f));
+  auto leftLeg = std::make_shared<MeshNode>(
+      cube, glm::vec4(0.8f, 0.8f, 0.2f, 1.0f), false, false);
   leftLeg->SetScale({3, -17.5, 3});
   leftLeg->SetTransform(glm::translate(glm::mat4(1.0), glm::vec3{-8, 0, 0}));
   leftLeg->SetBoundingRadius(17.5f);
 
-  auto rightLeg =
-      std::make_shared<MeshNode>(cube, glm::vec4(0.8f, 0.8f, 0.2f, 1.0f));
+  auto rightLeg = std::make_shared<MeshNode>(
+      cube, glm::vec4(0.8f, 0.8f, 0.2f, 1.0f), false, false);
   rightLeg->SetScale({3, -17.5, 3});
   rightLeg->SetTransform(glm::translate(glm::mat4(1.0), glm::vec3{8, 0, 0}));
   rightLeg->SetBoundingRadius(17.5f);
 
+  AddChild(body);
   body->AddChild(head);
   body->AddChild(leftArm);
   body->AddChild(rightArm);
   body->AddChild(leftLeg);
   body->AddChild(rightLeg);
+
+  SetBoundingRadius(50.f);
 
   this->head = head.get();
   this->leftArm = leftArm.get();

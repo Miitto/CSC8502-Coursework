@@ -9,8 +9,10 @@ class MeshNode : public engine::scene::Node {
   glm::vec4 color;
 
 public:
-  MeshNode(std::shared_ptr<engine::Mesh>& mesh, const glm::vec4& materialColor)
-      : engine::scene::Node(false, true), mesh(mesh), color(materialColor) {}
+  MeshNode(std::shared_ptr<engine::Mesh>& mesh, const glm::vec4& materialColor,
+           bool transparent, bool render = true)
+      : engine::scene::Node(transparent, render), mesh(mesh),
+        color(materialColor) {}
 
   void draw() {
     if (mesh) {
