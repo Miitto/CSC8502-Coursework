@@ -2,7 +2,6 @@
 
 #include "Robot.h"
 #include "logger/logger.hpp"
-#include <filesystem>
 #include <imgui/imgui.h>
 
 Renderer::Renderer(int width, int height, const char title[])
@@ -32,6 +31,8 @@ void Renderer::update(float dt) {
 void Renderer::render() {
   glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  glEnable(GL_DEPTH_TEST);
 
   auto nodeLists = graph.BuildNodeLists(camera);
 
