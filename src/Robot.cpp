@@ -78,7 +78,8 @@ Robot::Robot(std::shared_ptr<engine::Mesh>& cube)
   this->rightLeg = rightLeg.get();
 }
 
-void Robot::update(float dt) {
+void Robot::update(const engine::FrameInfo& info) {
+  const float dt = info.frameDelta;
   m_transforms.local =
       m_transforms.local *
       glm::rotate(glm::mat4(1.0), glm::radians(30.f * dt), engine::UP);
@@ -94,10 +95,12 @@ void Robot::update(float dt) {
       rightArm->GetTransforms().local *
       glm::rotate(glm::mat4(1.0), glm::radians(30.f * dt), engine::RIGHT));
 
-  Node::update(dt);
+  Node::update(info);
 }
 
-void Robot::render(const engine::Camera& camera) {
+void Robot::render(const engine::FrameInfo& info,
+                   const engine::Camera& camera) {
+  (void)info;
   program.bind();
   writeModelMatrices();
   camera.bindMatrixBuffer(0);

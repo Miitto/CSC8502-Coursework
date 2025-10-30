@@ -38,7 +38,9 @@ Heightmap::fromFile(std::string_view file) {
   return Heightmap(std::move(tex), std::move(prog), std::move(lodBuffer));
 }
 
-void Heightmap::render(const engine::Camera& camera) {
+void Heightmap::render(const engine::FrameInfo& info,
+                       const engine::Camera& camera) {
+  (void)info;
   {
     engine::gui::GuiWindow frame("Heightmap");
     ImGui::InputFloat3("Scale", &scale.x);

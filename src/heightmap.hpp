@@ -18,12 +18,13 @@ class Heightmap : public engine::scene::Node {
 public:
   static std::expected<Heightmap, std::string> fromFile(std::string_view file);
 
-  void render(const engine::Camera& camera) override;
+  void render(const engine::FrameInfo& info,
+              const engine::Camera& camera) override;
 
 protected:
   struct LodParams {
-    float minDistance = 20;
-    float maxDistance = 800;
+    float minDistance = 100;
+    float maxDistance = 2000;
     float minTessLevel = 4;
     float maxTessLevel = 64;
   };

@@ -10,8 +10,8 @@ class Renderer : public engine::App {
 public:
   Renderer(int width, int height, const char title[]);
 
-  void update(float dt) override;
-  void render() override;
+  void update(const engine::FrameInfo& frame) override;
+  void render(const engine::FrameInfo& frame) override;
 
 private:
   engine::PerspectiveCamera camera;

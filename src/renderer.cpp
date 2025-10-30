@@ -34,14 +34,14 @@ Renderer::Renderer(int width, int height, const char title[])
   graph.AddChild(std::make_shared<Robot>(cubeMesh));
 }
 
-void Renderer::update(float dt) {
-  engine::App::update(dt);
-  camera.update(input, dt);
+void Renderer::update(const engine::FrameInfo& info) {
+  engine::App::update(info);
+  camera.update(input, info.frameDelta);
 
-  graph.update(dt);
+  graph.update(info);
 }
 
-void Renderer::render() {
+void Renderer::render(const engine::FrameInfo& info) {
   glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -56,5 +56,5 @@ void Renderer::render() {
                 nodeLists.transparent.size());
   }
 
-  nodeLists.render(camera);
+  nodeLists.render(info, camera);
 }

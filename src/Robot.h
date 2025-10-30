@@ -21,9 +21,10 @@ public:
     }
   }
 
-  void render(const engine::Camera& camera) override {
+  void render(const engine::FrameInfo& info,
+              const engine::Camera& camera) override {
     draw();
-    Node::render(camera);
+    Node::render(info, camera);
   }
 };
 
@@ -34,8 +35,9 @@ public:
   Robot(std::shared_ptr<engine::Mesh>& cube);
   virtual ~Robot() = default;
 
-  void update(float dt) override;
-  virtual void render(const engine::Camera& camera) override;
+  void update(const engine::FrameInfo& info) override;
+  virtual void render(const engine::FrameInfo& info,
+                      const engine::Camera& camera) override;
   inline bool isValid() const { return program.isValid(); }
 
 protected:
