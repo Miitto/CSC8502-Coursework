@@ -1,12 +1,13 @@
 #include "renderer.hpp"
 
 #include "Robot.h"
+#include "heightmap.hpp"
 #include "logger/logger.hpp"
 #include <imgui/imgui.h>
 
 Renderer::Renderer(int width, int height, const char title[])
     : engine::App(width, height, title),
-      camera(0.1f, 1000.0f, 4.0f / 3.0f, glm::radians(90.0f)) {
+      camera(0.1f, 10000.0f, 4.0f / 3.0f, glm::radians(90.0f)) {
 
   cubeMesh = std::shared_ptr<engine::Mesh>(
       engine::Mesh::LoadFromMeshFile(MESHDIR "OffsetCubeY.msh"));
@@ -15,6 +16,18 @@ Renderer::Renderer(int width, int height, const char title[])
     bail();
     return;
   }
+
+  auto heightmapResult = Heightmap::fromFile(TEXTUREDIR "noise.png");
+  if (!heightmapResult) {
+    Logger::error("Failed to load heightmap: {}", heightmapResult.error());
+    bail();
+    return;
+  }
+
+  std::shared_ptr<Heightmap> heightmap =
+      std::make_shared<Heightmap>(std::move(heightmapResult.value()));
+
+  graph.AddChild(heightmap);
 
   camera.SetPosition({0.f, 30.f, 175.f});
 
