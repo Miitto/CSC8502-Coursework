@@ -30,8 +30,8 @@ protected:
   };
 
   void writeLodParams() {
-    auto mapping = lodBuffer.getMapping();
-    memcpy(mapping, &lodParams, sizeof(LodParams));
+    auto& mapping = lodBuffer.getMapping();
+    mapping.write(&lodParams, sizeof(LodParams));
   }
 
   LodParams lodParams;

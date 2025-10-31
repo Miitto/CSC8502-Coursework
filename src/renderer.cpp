@@ -76,14 +76,21 @@ void Renderer::render(const engine::FrameInfo& info) {
                 nodeLists.transparent.size());
   }
 
-  fbo.bind();
   glEnable(GL_DEPTH_TEST);
-  const GLint clearColor[] = {0, 0, 0, 1};
-  glClearNamedFramebufferiv(fbo.id(), GL_COLOR, 0, (const GLint*)&clearColor);
-  glClearNamedFramebufferfi(fbo.id(), GL_DEPTH_STENCIL, 0, 1.0f, 0);
+  if (!postProcesses.empty()) {
+    fbo.bind();
+    const GLint clearColor[] = {0, 0, 0, 1};
+    glClearNamedFramebufferiv(fbo.id(), GL_COLOR, 0, (const GLint*)&clearColor);
+    glClearNamedFramebufferfi(fbo.id(), GL_DEPTH_STENCIL, 0, 1.0f, 0);
+  } else {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  }
   nodeLists.render(info, camera);
-  fbo.unbind();
 
-  glDisable(GL_DEPTH_TEST);
-  // TODO: Post-process
+  if (!postProcesses.empty()) {
+    fbo.unbind();
+
+    glDisable(GL_DEPTH_TEST);
+    // TODO: Post-process
+  }
 }

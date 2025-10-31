@@ -116,13 +116,13 @@ void Robot::render(const engine::FrameInfo& info,
 }
 
 void Robot::writeModelMatrices() {
-  glm::mat4* mapping = static_cast<glm::mat4*>(modelMatsBuffer.getMapping());
+  auto& mapping = modelMatsBuffer.getMapping();
   std::array<MeshNode*, 6> meshNodes = {body.get(), head,    leftArm,
                                         rightArm,   leftLeg, rightLeg};
 
-  for (size_t i = 0; i < meshNodes.size(); ++i) {
+  for (GLuint i = 0; i < meshNodes.size(); ++i) {
     glm::mat4 modelMatrix = glm::scale(meshNodes[i]->GetTransforms().world,
                                        meshNodes[i]->GetScale());
-    memcpy(mapping + i, &modelMatrix, sizeof(glm::mat4));
+    mapping.write(&modelMatrix, sizeof(glm::mat4), i * sizeof(glm::mat4));
   }
 }
