@@ -19,10 +19,18 @@ private:
 
   std::shared_ptr<engine::Mesh> cubeMesh;
   engine::scene::Graph graph;
-  std::vector<PostProcess> postProcesses;
+  std::vector<std::unique_ptr<PostProcess>> postProcesses;
+  gl::Program copyProgram;
 
   engine::Window::Size windowSize;
 
-  gl::Texture fboTex;
-  gl::Framebuffer fbo;
+  struct Fbos {
+    gl::Texture tex = {};
+    gl::Texture depthTex = {};
+    gl::Framebuffer fbo = {};
+  };
+
+  std::array<Fbos, 2> postProcessFlipFlops = {};
+
+  void setupPostProcesses(int width, int height);
 };
