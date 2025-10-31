@@ -1,5 +1,6 @@
 #pragma once
 
+#include "postprocess.hpp"
 #include <engine/app.hpp>
 #include <engine/camera.hpp>
 #include <engine/mesh.hpp>
@@ -18,4 +19,10 @@ private:
 
   std::shared_ptr<engine::Mesh> cubeMesh;
   engine::scene::Graph graph;
+  std::vector<PostProcess> postProcesses;
+
+  engine::Window::Size windowSize;
+
+  gl::Texture fboTex;
+  gl::Framebuffer fbo;
 };

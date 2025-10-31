@@ -12,7 +12,7 @@ target_sources(${PROJECT_NAME}
     FILE_SET HEADERS
   PRIVATE
     main.cpp
- "logger/logger.cpp" "renderer.cpp" Robot.cpp "heightmap.cpp")
+ "logger/logger.cpp" "renderer.cpp" Robot.cpp "heightmap.cpp" "goober.cpp" "postprocess.cpp")
 
  target_compile_definitions(${PROJECT_NAME}
    PRIVATE

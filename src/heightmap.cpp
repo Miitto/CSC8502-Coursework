@@ -15,6 +15,9 @@ Heightmap::fromFile(std::string_view file) {
   auto& img = imgOpt.value();
 
   auto tex = img.toTexture();
+  tex.generateMipmap();
+  tex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+  tex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
   auto progOpt = gl::Program::fromFiles({
       {SHADERDIR "heightmap/vert.glsl", gl::Shader::Type::VERTEX},
