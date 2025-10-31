@@ -8,9 +8,14 @@
 #include <gl/gl.hpp>
 
 class Goober : public engine::scene::Node {
+  struct TexEntry {
+    gl::Texture texture;
+    GLuint64 handle;
+  };
+
   Goober(engine::Mesh&& mesh, gl::Program&& program,
          engine::mesh::Animation&& animation, engine::mesh::Material&& material,
-         std::vector<gl::Texture>&& textures);
+         std::vector<TexEntry>&& textures, gl::StorageBuffer&& texHandleBuffer);
 
 public:
   static std::expected<Goober, std::string> create();
@@ -24,7 +29,9 @@ protected:
   gl::Program program;
   engine::mesh::Animation animation;
   engine::mesh::Material material;
-  std::vector<gl::Texture> textures;
+
+  std::vector<TexEntry> textures = {};
+  gl::StorageBuffer texHandleBuffer = {};
 
   int currentFrame = 0;
   float frameTime = 0.0f;

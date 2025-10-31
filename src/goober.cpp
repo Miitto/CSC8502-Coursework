@@ -37,9 +37,13 @@ void Goober::render(const engine::FrameInfo& info,
   glUniformMatrix4fv(j, static_cast<GLsizei>(frameMatrices.size()), GL_FALSE,
                      reinterpret_cast<const float*>(frameMatrices.data()));
 
-  for (int i = 0; i < mesh.GetSubMeshCount(); ++i) {
-    textures[i].bind(0);
-    mesh.DrawSubMesh(i);
+  for (auto& tex : textures) {
+    gl::Texture::makeHandleResident(tex.handle);
+  }
+  texHandleBuffer.bindBase(gl::StorageBuffer::Target::STORAGE, 2);
+  mesh.BatchSubmeshes();
+  for (auto& tex : textures) {
+    gl::Texture::makeHandleNonResident(tex.handle);
   }
 
   engine::scene::Node::render(info, camera);
@@ -48,10 +52,12 @@ void Goober::render(const engine::FrameInfo& info,
 Goober::Goober(engine::Mesh&& mesh, gl::Program&& program,
                engine::mesh::Animation&& animation,
                engine::mesh::Material&& material,
-               std::vector<gl::Texture>&& textures)
+               std::vector<TexEntry>&& textures,
+               gl::StorageBuffer&& texHandleBuffer)
     : engine::scene::Node(false, true), mesh(std::move(mesh)),
       program(std::move(program)), animation(std::move(animation)),
-      material(std::move(material)), textures(std::move(textures)) {
+      material(std::move(material)), textures(std::move(textures)),
+      texHandleBuffer(std::move(texHandleBuffer)) {
   SetScale({50, 50, 50});
   SetTransform(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 250.0f, 0.0f)));
   SetBoundingRadius(100.0f);
@@ -66,7 +72,7 @@ std::expected<Goober, std::string> Goober::create() {
 
   auto progOpt = gl::Program::fromFiles({
       {SHADERDIR "skin.vert.glsl", gl::Shader::Type::VERTEX},
-      {SHADERDIR "tex.frag.glsl", gl::Shader::Type::FRAGMENT},
+      {SHADERDIR "tex_bindless.frag.glsl", gl::Shader::Type::FRAGMENT},
   });
   if (!progOpt) {
     return std::unexpected(progOpt.error());
@@ -76,7 +82,7 @@ std::expected<Goober, std::string> Goober::create() {
   engine::mesh::Animation animation(MESHDIR "Role_T.anm");
   engine::mesh::Material material(MESHDIR "Role_T.mat");
 
-  std::vector<gl::Texture> textures;
+  std::vector<TexEntry> textures;
 
   for (int i = 0; i < mesh.GetSubMeshCount(); ++i) {
     const engine::mesh::MaterialEntry* matEntry =
@@ -103,10 +109,27 @@ std::expected<Goober, std::string> Goober::create() {
     auto& img = imgOpt.value();
 
     auto texture = img.toTexture();
+    texture.generateMipmap();
+    GLuint64 handle = texture.getHandle();
+    if (handle == 0) {
+      return std::unexpected("Failed to get texture handle for " +
+                             std::string(texturePath));
+    }
 
-    textures.push_back(std::move(texture));
+    textures.emplace_back(std::move(texture), handle);
   }
 
-  return Goober{std::move(mesh), std::move(program), std::move(animation),
-                std::move(material), std::move(textures)};
+  std::vector<GLuint64> textureHandles;
+  textureHandles.reserve(textures.size());
+  for (const auto& tex : textures) {
+    textureHandles.push_back(tex.handle);
+  }
+
+  gl::StorageBuffer texHandleBuffer(
+      static_cast<GLuint>(textures.size() * sizeof(GLuint64)),
+      textureHandles.data());
+
+  return Goober{std::move(mesh),      std::move(program),
+                std::move(animation), std::move(material),
+                std::move(textures),  std::move(texHandleBuffer)};
 }

@@ -19,6 +19,7 @@ layout(location = 6) in ivec4 jointIndices;
 
 out Vertex {
   vec2 uv;
+  flat int drawID;
 } OUT;
 
 void main() {
@@ -36,4 +37,5 @@ void main() {
   gl_Position = mvp * vec4(skelPos.xyz, 1.0);
 
   OUT.uv = uv;
+  OUT.drawID = gl_DrawID;
 }
