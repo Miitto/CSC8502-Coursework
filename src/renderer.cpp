@@ -58,7 +58,7 @@ Renderer::Renderer(int width, int height, const char title[])
   std::unique_ptr<PostProcess> pp =
       std::make_unique<PostProcess>(std::move(testPP.value()));
 
-  postProcesses.push_back(pp);
+  postProcesses.push_back(std::move(pp));
 
   setupPostProcesses(width, height);
 }
