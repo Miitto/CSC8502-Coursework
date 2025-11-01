@@ -9,8 +9,12 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invViewProj;
 } CAM;
 
+layout(std430, binding = 1) readonly buffer JointMats {
+    mat4 joints[];
+} JOINTS;
+
 layout(location = 0) uniform mat4 model;
-layout(location = 4) uniform mat4 joints[128];
+layout(location = 1) uniform uint frameJointStartIndex;
 
 layout(location = 0) in vec3 position;
 layout(location = 2) in vec2 uv;
@@ -30,7 +34,7 @@ void main() {
     int jointIndex = jointIndices[i];
     float weight = joinWeights[i];
 
-    skelPos += joints[jointIndex] * local * weight;
+    skelPos += JOINTS.joints[frameJointStartIndex + jointIndex] * local * weight;
   }
 
   mat4 mvp = CAM.viewProj * model;

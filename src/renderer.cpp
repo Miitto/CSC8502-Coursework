@@ -15,14 +15,22 @@ Renderer::Renderer(int width, int height, const char title[])
       {{SHADERDIR "fullscreen.vert.glsl", gl::Shader::Type::VERTEX},
        {SHADERDIR "tex.frag.glsl", gl::Shader::Type::FRAGMENT}});
 
-  auto meshOpt = engine::Mesh::LoadFromMeshFile(MESHDIR "OffsetCubeY.msh");
-  if (!meshOpt) {
-    Logger::error("Failed to load cube mesh: {}", meshOpt.error());
+  auto meshDataOpt = engine::mesh::Data::fromFile(MESHDIR "OffsetCubeY.msh");
+  if (!meshDataOpt) {
+    Logger::error("Failed to load cube mesh: {}", meshDataOpt.error());
     bail();
     return;
   }
+  auto cubeMeshSize = engine::Mesh::requiredSize(*meshDataOpt);
 
-  cubeMesh = std::make_shared<engine::Mesh>(std::move(*meshOpt));
+  cubeMeshBuffer.init(cubeMeshSize, nullptr, gl::Buffer::Usage::WRITE);
+  auto mapping = cubeMeshBuffer.map(gl::Buffer::Mapping::WRITE);
+  engine::Mesh::BufferLocation bufferLoc{
+      .id = cubeMeshBuffer.id(),
+      .mapping = mapping,
+      .offset = 0,
+  };
+  cubeMesh = std::make_shared<engine::Mesh>(*meshDataOpt, bufferLoc);
 
   auto heightmapResult = Heightmap::fromFile(TEXTUREDIR "noise.png");
   if (!heightmapResult) {

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <engine/mesh.hpp>
-#include <engine/mesh_animation.hpp>
-#include <engine/mesh_material.hpp>
+#include <engine/mesh/animated_mesh.hpp>
+#include <engine/mesh/mesh_animation.hpp>
+#include <engine/mesh/mesh_material.hpp>
 #include <engine/scene_node.hpp>
 #include <expected>
 #include <gl/gl.hpp>
@@ -13,9 +13,10 @@ class Goober : public engine::scene::Node {
     GLuint64 handle;
   };
 
-  Goober(engine::Mesh&& mesh, gl::Program&& program,
-         engine::mesh::Animation&& animation, engine::mesh::Material&& material,
-         std::vector<TexEntry>&& textures, gl::StorageBuffer&& texHandleBuffer);
+  Goober(gl::Buffer&& meshBuffer, engine::AnimatedMesh&& mesh,
+         gl::Program&& program, engine::mesh::Animation&& animation,
+         engine::mesh::Material&& material, std::vector<TexEntry>&& textures,
+         gl::Buffer&& texHandleBuffer);
 
 public:
   static std::expected<Goober, std::string> create();
@@ -25,13 +26,14 @@ public:
               const engine::Camera& camera) override;
 
 protected:
-  engine::Mesh mesh;
+  gl::Buffer meshBuffer;
+  engine::AnimatedMesh mesh;
   gl::Program program;
   engine::mesh::Animation animation;
   engine::mesh::Material material;
 
   std::vector<TexEntry> textures = {};
-  gl::StorageBuffer texHandleBuffer = {};
+  gl::Buffer texHandleBuffer = {};
 
   int currentFrame = 0;
   float frameTime = 0.0f;

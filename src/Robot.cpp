@@ -104,7 +104,7 @@ void Robot::render(const engine::FrameInfo& info,
   program.bind();
   writeModelMatrices();
   camera.bindMatrixBuffer(0);
-  modelMatsBuffer.bindBase(gl::StorageBuffer::Target::STORAGE, 1);
+  modelMatsBuffer.bindBase(gl::Buffer::StorageTarget::STORAGE, 1);
 
   std::array<MeshNode*, 6> meshNodes = {body.get(), head,    leftArm,
                                         rightArm,   leftLeg, rightLeg};

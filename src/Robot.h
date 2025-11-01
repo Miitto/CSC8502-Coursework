@@ -1,6 +1,6 @@
 #pragma once
 
-#include <engine/mesh.hpp>
+#include <engine/mesh/mesh.hpp>
 #include <engine/scene_node.hpp>
 #include <gl/shaders.hpp>
 
@@ -44,7 +44,7 @@ protected:
   void writeModelMatrices();
 
   gl::Program program;
-  gl::StorageBuffer modelMatsBuffer;
+  gl::Buffer modelMatsBuffer;
 
   std::shared_ptr<MeshNode> body;
   MeshNode* head;

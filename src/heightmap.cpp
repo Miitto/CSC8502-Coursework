@@ -30,7 +30,7 @@ Heightmap::fromFile(std::string_view file) {
   }
   auto& prog = progOpt.value();
 
-  gl::StorageBuffer lodBuffer(
+  gl::Buffer lodBuffer(
       sizeof(LodParams), nullptr,
       gl::Buffer::Usage::WRITE | gl::Buffer::Usage::PERSISTENT |
           gl::Buffer::Usage::COHERENT | gl::Buffer::Usage::DYNAMIC);
@@ -58,7 +58,7 @@ void Heightmap::render(const engine::FrameInfo& info,
   texture.bind(0);
 
   camera.bindMatrixBuffer(0);
-  lodBuffer.bindBase(gl::StorageBuffer::Target::UNIFORM, 1);
+  lodBuffer.bindBase(gl::Buffer::StorageTarget::UNIFORM, 1);
   SetBoundingRadius(std::max(scale.x, scale.z) * 0.5f);
 
   glUniform3f(0, scale.x, scale.y, scale.z);

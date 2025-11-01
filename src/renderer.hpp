@@ -3,7 +3,7 @@
 #include "postprocess.hpp"
 #include <engine/app.hpp>
 #include <engine/camera.hpp>
-#include <engine/mesh.hpp>
+#include <engine/mesh/mesh.hpp>
 #include <gl/gl.hpp>
 #include <memory>
 
@@ -17,6 +17,7 @@ public:
 private:
   engine::PerspectiveCamera camera;
 
+  gl::Buffer cubeMeshBuffer = {};
   std::shared_ptr<engine::Mesh> cubeMesh;
   engine::scene::Graph graph;
   std::vector<std::unique_ptr<PostProcess>> postProcesses;
