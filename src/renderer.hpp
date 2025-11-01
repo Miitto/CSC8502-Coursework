@@ -21,7 +21,7 @@ private:
   std::shared_ptr<engine::Mesh> cubeMesh;
   engine::scene::Graph graph;
   std::vector<std::unique_ptr<PostProcess>> postProcesses;
-  gl::Program copyProgram;
+  PostProcess copyPP;
 
   engine::Window::Size windowSize;
 

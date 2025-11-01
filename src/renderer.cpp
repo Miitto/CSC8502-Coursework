@@ -56,17 +56,14 @@ Renderer::Renderer(int width, int height, const char title[])
   }
   graph.AddChild(std::make_shared<Goober>(std::move(gooberResult.value())));
 
-  auto testPP = PostProcess::create(SHADERDIR "tex.frag.glsl");
-  if (!testPP) {
-    Logger::error("Failed to create test post process: {}", testPP.error());
+  auto copyPPOpt = PostProcess::create(SHADERDIR "tex.frag.glsl");
+  if (!copyPPOpt) {
+    Logger::error("Failed to create test post process: {}", copyPPOpt.error());
     bail();
     return;
   }
 
-  std::unique_ptr<PostProcess> pp =
-      std::make_unique<PostProcess>(std::move(testPP.value()));
-
-  postProcesses.push_back(std::move(pp));
+  copyPP = std::move(*copyPPOpt);
 
   setupPostProcesses(width, height);
 }
@@ -112,19 +109,22 @@ void Renderer::render(const engine::FrameInfo& info) {
     auto bound = 0;
     glDisable(GL_DEPTH_TEST);
 
-    for (size_t i = 0; i < postProcesses.size(); ++i) {
-      const auto& pp = postProcesses[i];
-      const auto& src = postProcessFlipFlops[bound];
-      const auto& dst = postProcessFlipFlops[1 - bound];
-      if (i == postProcesses.size() - 1) {
-        gl::Framebuffer::unbind();
-      } else {
-        dst.fbo.bind();
-      }
-      src.tex.bind(0);
-      pp->run();
+    auto flip = [&]() {
+      postProcessFlipFlops[bound].tex.bind(0);
+      postProcessFlipFlops[bound].depthTex.bind(1);
       bound = 1 - bound;
+      postProcessFlipFlops[bound].fbo.bind();
+    };
+
+    for (size_t i = 0; i < postProcesses.size(); ++i) {
+      auto& pp = postProcesses[i];
+      flip();
+      pp->run(flip);
     }
+    gl::Framebuffer::unbind();
+    postProcessFlipFlops[bound].tex.bind(0);
+
+    copyPP.run(flip);
   }
 }
 
