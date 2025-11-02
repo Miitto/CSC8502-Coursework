@@ -11,12 +11,19 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invViewProj;
 } CAM;
 
-layout(std140, binding = 1) uniform LODSettings {
+struct LODSettings {
     float minDistance;
     float maxDistance;
     float minTessLevel;
     float maxTessLevel;
-} LOD;
+};
+
+const LODSettings LOD = {
+    20.0,    // minDistance
+    2000.0,   // maxDistance
+    1.0,     // minTessLevel
+    64.0     // maxTessLevel
+};
 
 in Vertex {
     vec2 uv;
@@ -24,6 +31,7 @@ in Vertex {
 
 out Vertex {
     vec2 uv;
+    float dist;
 } OUT[];
 
 in gl_PerVertex {
@@ -53,17 +61,29 @@ void main() {
     // Step 3: "distance" from camera scaled between 0 and 1
     float distDelta = LOD.maxDistance - LOD.minDistance;
 
-    float distance00 = clamp((abs(length(dir00))-LOD.minDistance) / distDelta, 0.0, 1.0);
-    float distance01 = clamp((abs(length(dir01))-LOD.minDistance) / distDelta, 0.0, 1.0);
-    float distance10 = clamp((abs(length(dir10))-LOD.minDistance) / distDelta, 0.0, 1.0);
-    float distance11 = clamp((abs(length(dir11))-LOD.minDistance) / distDelta, 0.0, 1.0);
+    float distance00 = (abs(length(dir00))-LOD.minDistance) / distDelta;
+    float distance01 = (abs(length(dir01))-LOD.minDistance) / distDelta;
+    float distance10 = (abs(length(dir10))-LOD.minDistance) / distDelta;
+    float distance11 = (abs(length(dir11))-LOD.minDistance) / distDelta;
+
+    switch (gl_InvocationID) {
+      case 0: OUT[gl_InvocationID].dist = distance00; break;
+      case 1: OUT[gl_InvocationID].dist = distance01; break;
+      case 2: OUT[gl_InvocationID].dist = distance10; break;
+      case 3: OUT[gl_InvocationID].dist = distance11; break;
+    }
+
+    float clamped00 = clamp(distance00, 0.0, 1.0);
+    float clamped01 = clamp(distance01, 0.0, 1.0);
+    float clamped10 = clamp(distance10, 0.0, 1.0);
+    float clamped11 = clamp(distance11, 0.0, 1.0);
 
     // ----------------------------------------------------------------------
     // Step 4: interpolate edge tessellation level based on closer vertex
-    float tessLevel0 = mix( LOD.maxTessLevel, LOD.minTessLevel, min(distance10, distance00) );
-    float tessLevel1 = mix( LOD.maxTessLevel, LOD.minTessLevel, min(distance00, distance01) );
-    float tessLevel2 = mix( LOD.maxTessLevel, LOD.minTessLevel, min(distance01, distance11) );
-    float tessLevel3 = mix( LOD.maxTessLevel, LOD.minTessLevel, min(distance11, distance10) );
+    float tessLevel0 = mix( LOD.maxTessLevel, LOD.minTessLevel, min(clamped10, clamped00) );
+    float tessLevel1 = mix( LOD.maxTessLevel, LOD.minTessLevel, min(clamped00, clamped01) );
+    float tessLevel2 = mix( LOD.maxTessLevel, LOD.minTessLevel, min(clamped01, clamped11) );
+    float tessLevel3 = mix( LOD.maxTessLevel, LOD.minTessLevel, min(clamped11, clamped10) );
 
     // ----------------------------------------------------------------------
     // Step 5: set the corresponding outer edge tessellation levels

@@ -5,19 +5,34 @@
 #include <engine\image.hpp>
 
 std::expected<Heightmap, std::string>
-Heightmap::fromFile(std::string_view file) {
-  Logger::debug("Loading heightmap from file: {}", file);
-  auto imgOpt = engine::Image::fromFile(file);
+Heightmap::fromFile(std::string_view heightFile, std::string_view diffuseFile) {
+  Logger::debug("Loading heightmap from heightFile: {}", heightFile);
+  auto heightImgRes = engine::Image::fromFile(heightFile, 1);
 
-  if (!imgOpt.has_value()) {
-    return std::unexpected(imgOpt.error());
+  if (!heightImgRes.has_value()) {
+    return std::unexpected(heightImgRes.error());
   }
-  auto& img = imgOpt.value();
+  auto& heightImg = heightImgRes.value();
 
-  auto tex = img.toTexture();
-  tex.generateMipmap();
-  tex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-  tex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  auto heightTex = heightImg.toTexture();
+  heightTex.generateMipmap();
+  heightTex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+  heightTex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+  auto diffuseImgRes = engine::Image::fromFile(diffuseFile);
+
+  if (!diffuseImgRes.has_value()) {
+    return std::unexpected(diffuseImgRes.error());
+  }
+  auto& diffuseImg = diffuseImgRes.value();
+
+  auto diffuseTex = diffuseImg.toTexture();
+  diffuseTex.generateMipmap();
+  diffuseTex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+  diffuseTex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+  heightTex.createHandle();
+  diffuseTex.createHandle();
 
   auto progOpt = gl::Program::fromFiles({
       {SHADERDIR "heightmap/vert.glsl", gl::Shader::Type::VERTEX},
@@ -30,40 +45,31 @@ Heightmap::fromFile(std::string_view file) {
   }
   auto& prog = progOpt.value();
 
-  gl::Buffer lodBuffer(
-      sizeof(LodParams), nullptr,
-      gl::Buffer::Usage::WRITE | gl::Buffer::Usage::PERSISTENT |
-          gl::Buffer::Usage::COHERENT | gl::Buffer::Usage::DYNAMIC);
-  lodBuffer.label("Heightmap LOD Params Buffer");
-  lodBuffer.map(gl::Buffer::Mapping::WRITE | gl::Buffer::Mapping::PERSISTENT |
-                gl::Buffer::Mapping::COHERENT);
-
-  return Heightmap(std::move(tex), std::move(prog), std::move(lodBuffer));
+  return Heightmap(std::move(heightTex), std::move(diffuseTex),
+                   std::move(prog));
 }
 
 void Heightmap::render(const engine::FrameInfo& info,
-                       const engine::Camera& camera) {
-  (void)info;
-  {
-    engine::gui::GuiWindow frame("Heightmap");
-    ImGui::InputFloat3("Scale", &scale.x);
-    bool updated = ImGui::InputFloat4("LOD Params", &lodParams.minDistance);
-    if (updated) {
-      Logger::debug("Updating heightmap LOD params");
-      writeLodParams();
-    }
-  }
-
+                       const engine::Camera& camera,
+                       const engine::Frustum& frustum) {
   program.bind();
-  texture.bind(0);
 
   camera.bindMatrixBuffer(0);
-  lodBuffer.bindBase(gl::Buffer::StorageTarget::UNIFORM, 1);
-  SetBoundingRadius(std::max(scale.x, scale.z) * 0.5f);
 
-  glUniform3f(0, scale.x, scale.y, scale.z);
-  glUniform1ui(1, 5); // Chunks Per Axis
+  auto bg = dummyVao.bindGuard();
+
+  heightTex.handle().use();
+  diffuseTex.handle().use();
+
+  textureBuffer.bindBase(gl::Buffer::StorageTarget::UNIFORM, 1);
+
+  constexpr int chunksPerAxis = 7;
 
   glPatchParameteri(GL_PATCH_VERTICES, 4);
-  glDrawArrays(GL_PATCHES, 0, 4 * 5 * 5);
+  glDrawArrays(GL_PATCHES, 0, 4 * chunksPerAxis * chunksPerAxis);
+
+  heightTex.handle().unuse();
+  diffuseTex.handle().unuse();
+
+  engine::scene::Node::render(info, camera, frustum);
 }

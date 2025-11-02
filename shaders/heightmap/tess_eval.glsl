@@ -1,9 +1,8 @@
 #version 460 core
 
-layout (quads, fractional_odd_spacing, ccw) in;
+#extension GL_ARB_bindless_texture : require
 
-layout(binding = 0) uniform sampler2D heightmap;
-layout(location = 0) uniform vec3 scale;
+layout (quads, fractional_odd_spacing, ccw) in;
 
 layout(std140, binding = 0) uniform CameraMats {
     mat4 view;
@@ -14,13 +13,18 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invViewProj;
 } CAM;
 
+layout(std140, binding = 1) uniform Textures {
+    sampler2D heightmap;
+    sampler2D diffuse;
+} TEX;
+
 in Vertex {
     vec2 uv;
+  float dist;
 } IN[];
 
 out Vertex {
   vec2 uv;
-  float height;
 } OUT;
 
 void main() {
@@ -30,7 +34,11 @@ void main() {
   vec2 t1 = mix(IN[2].uv, IN[3].uv, inUv.x);
   vec2 uv = mix(t0, t1, inUv.y);
 
-  OUT.height = texture(heightmap, uv).r * scale.y;
+  float d0 = mix(IN[0].dist, IN[1].dist, inUv.x);
+  float d1 = mix(IN[2].dist, IN[3].dist, inUv.x);
+  float dist = mix(d0, d1, inUv.y);
+
+  float height = texture(TEX.heightmap, uv).r * 500.0;
 
   vec4 p00 = gl_in[0].gl_Position;
   vec4 p01 = gl_in[1].gl_Position;
@@ -41,7 +49,9 @@ void main() {
   vec4 pos1 = mix(p10, p11, inUv.x);
   vec4 pos = mix(pos0, pos1, inUv.y);
 
-  pos.y += OUT.height;
+  pos.y += height;
+
+  OUT.uv = uv;
 
   gl_Position = CAM.viewProj * pos;
 }

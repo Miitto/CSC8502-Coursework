@@ -1,9 +1,9 @@
 #include "renderer.hpp"
 
-#include "Robot.h"
 #include "goober.hpp"
 #include "heightmap.hpp"
 #include "logger/logger.hpp"
+#include <glm\ext\matrix_transform.hpp>
 #include <imgui/imgui.h>
 
 Renderer::Renderer(int width, int height, const char title[])
@@ -21,18 +21,9 @@ Renderer::Renderer(int width, int height, const char title[])
     bail();
     return;
   }
-  auto cubeMeshSize = engine::Mesh::requiredSize(*meshDataOpt);
 
-  cubeMeshBuffer.init(cubeMeshSize, nullptr, gl::Buffer::Usage::WRITE);
-  auto mapping = cubeMeshBuffer.map(gl::Buffer::Mapping::WRITE);
-  engine::Mesh::BufferLocation bufferLoc{
-      .id = cubeMeshBuffer.id(),
-      .mapping = mapping,
-      .offset = 0,
-  };
-  cubeMesh = std::make_shared<engine::Mesh>(*meshDataOpt, bufferLoc);
-
-  auto heightmapResult = Heightmap::fromFile(TEXTUREDIR "noise.png");
+  auto heightmapResult = Heightmap::fromFile(TEXTUREDIR "terrain/height.png",
+                                             TEXTUREDIR "terrain/diffuse.png");
   if (!heightmapResult) {
     Logger::error("Failed to load heightmap: {}", heightmapResult.error());
     bail();
@@ -44,16 +35,30 @@ Renderer::Renderer(int width, int height, const char title[])
 
   graph.AddChild(heightmap);
 
-  camera.SetPosition({0.f, 30.f, 175.f});
+  camera.SetPosition({0.f, 300.f, 0.0f});
 
-  graph.AddChild(std::make_shared<Robot>(cubeMesh));
-
-  auto gooberResult = Goober::create();
+  auto gooberResult = Goober::create(5);
   if (!gooberResult) {
     Logger::error("Failed to create Goober: {}", gooberResult.error());
     bail();
     return;
   }
+  auto& goober = *gooberResult;
+  goober[0].SetTransform(
+      glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 0.0f)));
+  goober[1].SetTransform(
+      glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 10.0f)));
+  goober[1].setFrame(10);
+  goober[2].SetTransform(
+      glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 20.0f)));
+  goober[2].setFrame(20);
+  goober[3].SetTransform(
+      glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 30.0f)));
+  goober[3].setFrame(30);
+  goober[4].SetTransform(
+      glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 40.0f)));
+  goober[4].setFrame(40);
+
   graph.AddChild(std::make_shared<Goober>(std::move(gooberResult.value())));
 
   auto copyPPOpt = PostProcess::create(SHADERDIR "tex.frag.glsl");
@@ -103,7 +108,8 @@ void Renderer::render(const engine::FrameInfo& info) {
   } else {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   }
-  nodeLists.render(info, camera);
+  auto& frustum = camera.GetFrustum();
+  nodeLists.render(info, camera, frustum);
 
   if (!postProcesses.empty()) {
     auto bound = 0;

@@ -1,7 +1,7 @@
 #version 460 core
 
-layout(location = 0) uniform vec3 scale;
-layout(location = 1) uniform uint chunksPerAxis; 
+const vec3 scale = vec3(2500, 500, 2500);
+const uint chunksPerAxis = 7u;
 
 const vec3 POS[4] = vec3[](
     vec3(0.0, 0.0, 0.0),
