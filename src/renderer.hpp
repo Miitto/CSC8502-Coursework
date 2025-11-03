@@ -14,14 +14,14 @@ public:
   void update(const engine::FrameInfo& frame) override;
   void render(const engine::FrameInfo& frame) override;
 
+  void onWindowResize(engine::Window::Size newSize) override;
+
 private:
   engine::PerspectiveCamera camera;
 
   engine::scene::Graph graph;
   std::vector<std::unique_ptr<PostProcess>> postProcesses;
   PostProcess copyPP;
-
-  engine::Window::Size windowSize;
 
   struct Fbos {
     gl::Texture tex = {};

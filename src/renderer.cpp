@@ -8,8 +8,7 @@
 
 Renderer::Renderer(int width, int height, const char title[])
     : engine::App(width, height, title),
-      camera(0.1f, 10000.0f, 4.0f / 3.0f, glm::radians(90.0f)),
-      windowSize(window.size()) {
+      camera(0.1f, 10000.0f, 4.0f / 3.0f, glm::radians(90.0f)) {
 
   auto copyProgOpt = gl::Program::fromFiles(
       {{SHADERDIR "fullscreen.vert.glsl", gl::Shader::Type::VERTEX},
@@ -47,16 +46,16 @@ Renderer::Renderer(int width, int height, const char title[])
   goober[0].SetTransform(
       glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 0.0f)));
   goober[1].SetTransform(
-      glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 10.0f)));
+      glm::translate(glm::mat4(1.0f), glm::vec3(25.f, 268.75f, 0.0f)));
   goober[1].setFrame(10);
   goober[2].SetTransform(
-      glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 20.0f)));
+      glm::translate(glm::mat4(1.0f), glm::vec3(40.f, 268.75f, 0.0f)));
   goober[2].setFrame(20);
   goober[3].SetTransform(
-      glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 30.0f)));
+      glm::translate(glm::mat4(1.0f), glm::vec3(55.f, 268.75f, 0.0f)));
   goober[3].setFrame(30);
   goober[4].SetTransform(
-      glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 40.0f)));
+      glm::translate(glm::mat4(1.0f), glm::vec3(70.f, 268.75f, 0.0f)));
   goober[4].setFrame(40);
 
   graph.AddChild(std::make_shared<Goober>(std::move(gooberResult.value())));
@@ -73,6 +72,11 @@ Renderer::Renderer(int width, int height, const char title[])
   setupPostProcesses(width, height);
 }
 
+void Renderer::onWindowResize(engine::Window::Size newSize) {
+  setupPostProcesses(newSize.width, newSize.height);
+  camera.onResize(newSize.width, newSize.height);
+}
+
 void Renderer::update(const engine::FrameInfo& info) {
   engine::App::update(info);
   camera.update(input, info.frameDelta);
@@ -82,12 +86,6 @@ void Renderer::update(const engine::FrameInfo& info) {
 
 void Renderer::render(const engine::FrameInfo& info) {
   glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-
-  if (window.size() != windowSize) {
-    windowSize = window.size();
-    setupPostProcesses(windowSize.width, windowSize.height);
-    camera.onResize(windowSize.width, windowSize.height);
-  }
 
   auto nodeLists = graph.BuildNodeLists(camera);
 
@@ -136,7 +134,9 @@ void Renderer::render(const engine::FrameInfo& info) {
 
 void Renderer::setupPostProcesses(int width, int height) {
   for (auto& pp : postProcessFlipFlops) {
+    pp.tex = {};
     pp.tex.storage(1, GL_RGBA8, {width, height});
+    pp.fbo = {};
     pp.fbo.attachTexture(GL_COLOR_ATTACHMENT0, pp.tex);
     pp.depthTex.storage(1, GL_DEPTH24_STENCIL8, {width, height});
     pp.fbo.attachTexture(GL_DEPTH_STENCIL_ATTACHMENT, pp.depthTex);
