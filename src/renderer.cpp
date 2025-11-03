@@ -85,6 +85,7 @@ void Renderer::update(const engine::FrameInfo& info) {
 }
 
 void Renderer::render(const engine::FrameInfo& info) {
+  gbuffers.fbo.bind();
   glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 
   auto nodeLists = graph.BuildNodeLists(camera);
