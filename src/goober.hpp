@@ -13,7 +13,8 @@ class GooberInstance : public engine::scene::Node {
   void setupStatics(const Goober& goober);
 
 public:
-  GooberInstance(const Goober& goober) : engine::scene::Node(false, false) {
+  GooberInstance(const Goober& goober)
+      : engine::scene::Node(engine::scene::Node::RenderType::LIT, false) {
     SetScale({10, 10, 10});
     SetBoundingRadius(15.0f);
 
@@ -45,10 +46,10 @@ protected:
 
 class Goober : public engine::scene::Node {
   Goober(gl::Buffer&& vertexBuffer, gl::Buffer&& indexBuffer,
-         gl::Buffer&& jointBuffer, engine::Mesh&& mesh, gl::Program&& program,
-         engine::mesh::Animation&& animation, engine::mesh::Material&& material,
-         std::vector<gl::Texture>&& textures, gl::Buffer&& texHandleBuffer,
-         size_t gooberCount);
+         gl::Buffer&& jointBuffer, engine::mesh::Mesh&& mesh,
+         gl::Program&& program, engine::mesh::Animation&& animation,
+         engine::mesh::Material&& material, std::vector<gl::Texture>&& textures,
+         gl::Buffer&& texHandleBuffer, size_t gooberCount);
 
 public:
   static std::expected<Goober, std::string> create(size_t gooberCount = 1);
@@ -63,7 +64,7 @@ protected:
   gl::Buffer vertexBuffer;
   gl::Buffer indexBuffer;
   gl::Buffer jointBuffer;
-  engine::Mesh mesh;
+  engine::mesh::Mesh mesh;
   gl::Program program;
   engine::mesh::Animation animation;
   engine::mesh::Material material;

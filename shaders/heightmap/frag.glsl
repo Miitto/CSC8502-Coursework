@@ -1,20 +1,20 @@
 #version 460 core
 
-#extension GL_ARB_bindless_texture : require
-
 in Vertex {
-    vec2 uv;
+  vec2 uv;
 } IN;
 
-layout(std140, binding = 1) uniform Textures {
-    sampler2D heightmap;
-    sampler2D diffuse;
-} TEX;
+layout(binding = 1) uniform sampler2D diffuse;
+layout(binding = 2) uniform sampler2D normalMap;
 
 const vec3 SRGB = vec3(2.2);
 
-out vec4 fragColor;
+layout(location = 0) out vec4 diffuseOut;
+layout(location = 1) out vec4 normalOut;
+layout(location = 2) out vec4 materialOut;
 
 void main() {
-  fragColor = vec4(pow(texture(TEX.diffuse, IN.uv).rgb, 1.0 / SRGB), 1.0);
+  diffuseOut = vec4(pow(texture(diffuse, IN.uv).rgb, 1.0 / SRGB), 1.0);
+  normalOut = vec4(texture(normalMap, IN.uv).rgb * 2.0 - 1.0, 1.0);
+  materialOut = vec4(1.0);
 }

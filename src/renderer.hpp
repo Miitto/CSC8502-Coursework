@@ -1,9 +1,10 @@
 #pragma once
 
+#include "pointLight.hpp"
 #include "postprocess.hpp"
+#include <array>
 #include <engine/app.hpp>
 #include <engine/camera.hpp>
-#include <engine/mesh/mesh.hpp>
 #include <gl/gl.hpp>
 #include <memory>
 
@@ -17,19 +18,41 @@ public:
   void onWindowResize(engine::Window::Size newSize) override;
 
 private:
+  bool renderPointLights();
+  bool combineDeferredLightBuffers();
+  void renderPostProcesses();
+
+  gl::Vao dummyVao = {};
+
   engine::PerspectiveCamera camera;
 
   engine::scene::Graph graph;
+
+  gl::Program pointLight;
+  gl::Program deferredLightCombine;
+
+  struct LightFbo {
+    gl::Texture diffuse = {};
+    gl::Texture specular = {};
+    gl::Framebuffer fbo = {};
+  };
+  LightFbo lightFbo = {};
+  gl::Vao pointLightVao;
+  std::vector<PointLight> pointLights = {};
+  gl::Buffer pointLightBuffer = {};
+  gl::Mapping pointLightMapping = {};
+
   std::vector<std::unique_ptr<PostProcess>> postProcesses;
   PostProcess copyPP;
+  gl::Program depthView;
 
   struct Fbos {
     gl::Texture tex = {};
-    gl::Texture depthTex = {};
     gl::Framebuffer fbo = {};
   };
 
-  std::array<Fbos, 2> postProcessFlipFlops = {};
+  std::array<Fbos, 2> postProcessFlipFlops = {Fbos{}, Fbos{}};
 
   void setupPostProcesses(int width, int height);
+  void setupLightFbo(int width, int height);
 };

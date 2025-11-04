@@ -91,12 +91,13 @@ void Goober::render(const engine::FrameInfo& info, const engine::Camera& camera,
 }
 
 Goober::Goober(gl::Buffer&& vertexBuffer, gl::Buffer&& indexBuffer,
-               gl::Buffer&& jointBuffer, engine::Mesh&& mesh,
+               gl::Buffer&& jointBuffer, engine::mesh::Mesh&& mesh,
                gl::Program&& program, engine::mesh::Animation&& animation,
                engine::mesh::Material&& material,
                std::vector<gl::Texture>&& textures,
                gl::Buffer&& texHandleBuffer, size_t gooberCount)
-    : engine::scene::Node(false, true), vertexBuffer(std::move(vertexBuffer)),
+    : engine::scene::Node(engine::scene::Node::RenderType::LIT, true),
+      vertexBuffer(std::move(vertexBuffer)),
       indexBuffer(std::move(indexBuffer)), jointBuffer(std::move(jointBuffer)),
       mesh(std::move(mesh)), program(std::move(program)),
       animation(std::move(animation)), material(std::move(material)),
@@ -152,17 +153,17 @@ std::expected<Goober, std::string> Goober::create(size_t instances) {
   auto& meshData = meshDataOpt.value();
   engine::mesh::Animation animation(MESHDIR "Role_T.anm");
 
-  engine::Mesh mesh(meshData);
+  engine::mesh::Mesh mesh(meshData);
 
-  auto vertexBufferSize = engine::Mesh::vertexDataSize(meshData);
+  auto vertexBufferSize = engine::mesh::Mesh::vertexDataSize(meshData);
   gl::Buffer vertexBuffer(vertexBufferSize);
   vertexBuffer.label("Goober Vertex Buffer");
 
-  auto indexBufferSize = engine::Mesh::indexDataSize(meshData, 0);
+  auto indexBufferSize = engine::mesh::Mesh::indexDataSize(meshData, 0);
   gl::Buffer indexBuffer(indexBufferSize.size);
   indexBuffer.label("Goober Index Buffer");
 
-  auto jointBufferSize = engine::Mesh::jointDataSize(animation, 0);
+  auto jointBufferSize = engine::mesh::Mesh::jointDataSize(animation, 0);
   gl::Buffer jointBuffer(jointBufferSize.size);
   jointBuffer.label("Goober Joint Buffer");
 
@@ -241,14 +242,14 @@ std::expected<Goober, std::string> Goober::create(size_t instances) {
     textures.emplace_back(std::move(texture));
   }
 
-  std::vector<gl::RawTextureHandle> textureHandles;
+  std::vector<engine::mesh::TextureSet> textureHandles;
   textureHandles.reserve(textures.size());
   for (const auto& tex : textures) {
-    textureHandles.push_back(tex.handle());
+    textureHandles.push_back({tex.handle()});
   }
 
   gl::Buffer texHandleBuffer(
-      static_cast<GLuint>(textures.size() * sizeof(GLuint64)),
+      static_cast<GLuint>(textures.size() * sizeof(engine::mesh::TextureSet)),
       textureHandles.data());
 
   return Goober{std::move(vertexBuffer),    std::move(indexBuffer),

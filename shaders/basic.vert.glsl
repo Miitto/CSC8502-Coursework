@@ -7,6 +7,7 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invView;
     mat4 invProj;
     mat4 invViewProj;
+    vec2 resolution;
 } CAM;
 
 layout(std430, binding = 1) buffer ModelMats {

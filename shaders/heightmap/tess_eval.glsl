@@ -1,8 +1,6 @@
 #version 460 core
 
-#extension GL_ARB_bindless_texture : require
-
-layout (quads, fractional_odd_spacing, ccw) in;
+layout (quads, fractional_odd_spacing, cw) in;
 
 layout(std140, binding = 0) uniform CameraMats {
     mat4 view;
@@ -11,15 +9,13 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invView;
     mat4 invProj;
     mat4 invViewProj;
+    vec2 resolution;
 } CAM;
 
-layout(std140, binding = 1) uniform Textures {
-    sampler2D heightmap;
-    sampler2D diffuse;
-} TEX;
+layout(binding = 0) uniform sampler2D heightmap;
 
 in Vertex {
-    vec2 uv;
+  vec2 uv;
   float dist;
 } IN[];
 
@@ -38,7 +34,7 @@ void main() {
   float d1 = mix(IN[2].dist, IN[3].dist, inUv.x);
   float dist = mix(d0, d1, inUv.y);
 
-  float height = texture(TEX.heightmap, uv).r * 500.0;
+  float height = texture(heightmap, uv).r * 500.0;
 
   vec4 p00 = gl_in[0].gl_Position;
   vec4 p01 = gl_in[1].gl_Position;
