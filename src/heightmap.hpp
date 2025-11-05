@@ -27,10 +27,6 @@ public:
               const engine::Frustum& frustum) override;
 
 protected:
-  // Don't need a VAO since we have no vertex attribs, but OpenGL requires one
-  // anyway :/
-  gl::Vao dummyVao = {};
-
   gl::Texture heightTex;
   gl::Texture diffuseTex;
   gl::Texture normalTex;

@@ -1,6 +1,7 @@
 #include "heightmap.hpp"
 #include "logger/logger.hpp"
 #include <engine/camera.hpp>
+#include <engine/globals.hpp>
 #include <engine/gui.hpp>
 #include <engine\image.hpp>
 
@@ -66,7 +67,7 @@ void Heightmap::render(const engine::FrameInfo& info,
 
   camera.bindMatrixBuffer(0);
 
-  auto bg = dummyVao.bindGuard();
+  auto bg = engine::globals::DUMMY_VAO.bindGuard();
 
   heightTex.bind(0);
   diffuseTex.bind(1);

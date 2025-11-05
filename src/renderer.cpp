@@ -3,6 +3,9 @@
 #include "goober.hpp"
 #include "heightmap.hpp"
 #include "logger/logger.hpp"
+#include "skybox.hpp"
+#include "water.hpp"
+#include <engine/globals.hpp>
 #include <gl/structs.hpp>
 #include <glm\ext\matrix_transform.hpp>
 #include <imgui/imgui.h>
@@ -20,6 +23,94 @@ namespace {
   };
 
   DebugView debugView = DebugView::NONE;
+  void setupGoober(Goober& goober) {
+    goober[0].SetTransform(
+        glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 0.0f)));
+    goober[1].SetTransform(
+        glm::translate(glm::mat4(1.0f), glm::vec3(25.f, 268.75f, 0.0f)));
+    goober[1].setFrame(5);
+    goober[2].SetTransform(
+        glm::translate(glm::mat4(1.0f), glm::vec3(40.f, 268.75f, 0.0f)));
+    goober[2].setFrame(10);
+    goober[3].SetTransform(
+        glm::translate(glm::mat4(1.0f), glm::vec3(55.f, 268.75f, 0.0f)));
+    goober[3].setFrame(15);
+    goober[4].SetTransform(
+        glm::translate(glm::mat4(1.0f), glm::vec3(70.f, 268.75f, 0.0f)));
+    goober[4].setFrame(20);
+  }
+
+  std::expected<gl::CubeMap, std::string> getEnvMap() {
+    auto topRes =
+        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_up.jpg", 4);
+    if (!topRes) {
+      return std::unexpected(
+          fmt::format("Failed to load env map top: {}", topRes.error()));
+    }
+    auto bottomRes =
+        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_down.jpg", 4);
+    if (!bottomRes) {
+      return std::unexpected(
+          fmt::format("Failed to load env map bottom: {}", bottomRes.error()));
+    }
+
+    auto leftRes =
+        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_east.jpg", 4);
+    if (!leftRes) {
+      return std::unexpected(
+          fmt::format("Failed to load env map left: {}", leftRes.error()));
+    }
+
+    auto rightRes =
+        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_west.jpg", 4);
+    if (!rightRes) {
+      return std::unexpected(
+          fmt::format("Failed to load env map right: {}", rightRes.error()));
+    }
+    auto frontRes =
+        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_north.jpg", 4);
+    if (!frontRes) {
+      return std::unexpected(
+          fmt::format("Failed to load env map front: {}", frontRes.error()));
+    }
+    auto backRes =
+        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_south.jpg", 4);
+    if (!backRes) {
+      return std::unexpected(
+          fmt::format("Failed to load env map back: {}", backRes.error()));
+    }
+
+    gl::CubeMap cubeMap;
+    glm::ivec2 size = topRes->getDimensions();
+
+    if (leftRes->getDimensions() != size || rightRes->getDimensions() != size ||
+        frontRes->getDimensions() != size || backRes->getDimensions() != size ||
+        bottomRes->getDimensions() != size) {
+      return std::unexpected("Env map faces have mismatched dimensions");
+    }
+
+    cubeMap.storage(1, GL_RGBA8, size);
+    cubeMap.subImage(0, 0, 0, gl::CubeMap::Face::POSITIVE_Y, size.x, size.y, 1,
+                     GL_RGBA, GL_UNSIGNED_BYTE, topRes->getData());
+    cubeMap.subImage(0, 0, 0, gl::CubeMap::Face::NEGATIVE_Y, size.x, size.y, 1,
+                     GL_RGBA, GL_UNSIGNED_BYTE, bottomRes->getData());
+    cubeMap.subImage(0, 0, 0, gl::CubeMap::Face::NEGATIVE_X, size.x, size.y, 1,
+                     GL_RGBA, GL_UNSIGNED_BYTE, leftRes->getData());
+    cubeMap.subImage(0, 0, 0, gl::CubeMap::Face::POSITIVE_X, size.x, size.y, 1,
+                     GL_RGBA, GL_UNSIGNED_BYTE, rightRes->getData());
+    cubeMap.subImage(0, 0, 0, gl::CubeMap::Face::NEGATIVE_Z, size.x, size.y, 1,
+                     GL_RGBA, GL_UNSIGNED_BYTE, frontRes->getData());
+    cubeMap.subImage(0, 0, 0, gl::CubeMap::Face::POSITIVE_Z, size.x, size.y, 1,
+                     GL_RGBA, GL_UNSIGNED_BYTE, backRes->getData());
+
+    cubeMap.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    cubeMap.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    cubeMap.setParameter(GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    cubeMap.setParameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    cubeMap.setParameter(GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    return cubeMap;
+  }
 } // namespace
 
 template <>
@@ -61,17 +152,6 @@ Renderer::Renderer(int width, int height, const char title[])
 
   camera.onResize(width, height);
 
-  auto copyProgOpt = gl::Program::fromFiles(
-      {{SHADERDIR "fullscreen.vert.glsl", gl::Shader::Type::VERTEX},
-       {SHADERDIR "tex.frag.glsl", gl::Shader::Type::FRAGMENT}});
-
-  auto meshDataOpt = engine::mesh::Data::fromFile(MESHDIR "OffsetCubeY.msh");
-  if (!meshDataOpt) {
-    Logger::error("Failed to load cube mesh: {}", meshDataOpt.error());
-    bail();
-    return;
-  }
-
   auto heightmapResult = Heightmap::fromFile(TEXTUREDIR "terrain/height.png",
                                              TEXTUREDIR "terrain/diffuse.png",
                                              TEXTUREDIR "terrain/normal.png");
@@ -80,11 +160,8 @@ Renderer::Renderer(int width, int height, const char title[])
     bail();
     return;
   }
-
-  std::shared_ptr<Heightmap> heightmap =
-      std::make_shared<Heightmap>(std::move(heightmapResult.value()));
-
-  graph.AddChild(heightmap);
+  graph.AddChild(
+      std::make_shared<Heightmap>(std::move(heightmapResult.value())));
 
   camera.SetPosition({0.f, 300.f, 0.0f});
 
@@ -94,23 +171,16 @@ Renderer::Renderer(int width, int height, const char title[])
     bail();
     return;
   }
-  auto& goober = *gooberResult;
-  goober[0].SetTransform(
-      glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 0.0f)));
-  goober[1].SetTransform(
-      glm::translate(glm::mat4(1.0f), glm::vec3(25.f, 268.75f, 0.0f)));
-  goober[1].setFrame(10);
-  goober[2].SetTransform(
-      glm::translate(glm::mat4(1.0f), glm::vec3(40.f, 268.75f, 0.0f)));
-  goober[2].setFrame(20);
-  goober[3].SetTransform(
-      glm::translate(glm::mat4(1.0f), glm::vec3(55.f, 268.75f, 0.0f)));
-  goober[3].setFrame(30);
-  goober[4].SetTransform(
-      glm::translate(glm::mat4(1.0f), glm::vec3(70.f, 268.75f, 0.0f)));
-  goober[4].setFrame(40);
-
+  setupGoober(*gooberResult);
   graph.AddChild(std::make_shared<Goober>(std::move(gooberResult.value())));
+
+  auto cubeMapResult = getEnvMap();
+  if (!cubeMapResult) {
+    Logger::error("Failed to load environment map: {}", cubeMapResult.error());
+    bail();
+    return;
+  }
+  envMap = std::move(*cubeMapResult);
 
   auto copyPPOpt = PostProcess::create(SHADERDIR "tex.frag.glsl");
   if (!copyPPOpt) {
@@ -171,7 +241,19 @@ Renderer::Renderer(int width, int height, const char title[])
                                            gl::Buffer::Mapping::PERSISTENT |
                                            gl::Buffer::Mapping::COHERENT);
 
-  // PointLight::setupVao(pointLightVao, pointLightBuffer, 0);
+  graph.AddChild(std::make_shared<Water>(5000.0f, 110.0f, envMap));
+
+  auto skyboxRes = Skybox::create(envMap);
+  if (!skyboxRes) {
+    Logger::error("Failed to create skybox: {}", skyboxRes.error());
+    bail();
+    return;
+  }
+
+  std::unique_ptr<PostProcess> skyboxPtr =
+      std::make_unique<Skybox>(std::move(*skyboxRes));
+
+  postProcesses.emplace_back(std::move(skyboxPtr));
 
   setupPostProcesses(width, height);
   setupLightFbo(width, height);
@@ -201,8 +283,8 @@ void Renderer::render(const engine::FrameInfo& info) {
   {
     engine::gui::GuiWindow cameraFrame("Camera");
     camera.CameraDebugUI();
-    ImGui::Text("O: %d | T: %d", nodeLists.opaque.size(),
-                nodeLists.transparent.size());
+    ImGui::Text("L: %d | O: %d | T: %d", nodeLists.lit.size(),
+                nodeLists.opaque.size(), nodeLists.transparent.size());
     ImGui::SeparatorText("Debug Views");
     if (ImGui::BeginCombo("View", fmt::format("{}", debugView).c_str())) {
 #define SEL(NAME, ENUM)                                                        \
@@ -248,7 +330,7 @@ void Renderer::render(const engine::FrameInfo& info) {
       gbuffers->material.bind(0);
       break;
     case DebugView::DEPTH: {
-      auto bg = dummyVao.bindGuard();
+      auto bg = engine::globals::DUMMY_VAO.bindGuard();
       depthView.bind();
       glUniform1f(1, camera.getNear());
       glUniform1f(0, camera.getFar());
@@ -259,14 +341,14 @@ void Renderer::render(const engine::FrameInfo& info) {
     default:
       break;
     }
-    auto bg = dummyVao.bindGuard();
+    auto bg = engine::globals::DUMMY_VAO.bindGuard();
     copyPP.run([]() {});
     return;
   }
 
   if (!renderPointLights())
     return;
-  auto bg = dummyVao.bindGuard();
+  auto bg = engine::globals::DUMMY_VAO.bindGuard();
   if (!combineDeferredLightBuffers())
     return;
   renderPostProcesses();
@@ -275,7 +357,7 @@ void Renderer::render(const engine::FrameInfo& info) {
 bool Renderer::renderPointLights() {
   pointLight.bind();
 
-  auto bg = dummyVao.bindGuard();
+  auto bg = engine::globals::DUMMY_VAO.bindGuard();
   lightFbo.fbo.bind();
 
   constexpr glm::vec4 clearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -349,6 +431,11 @@ bool Renderer::combineDeferredLightBuffers() {
 }
 
 void Renderer::renderPostProcesses() {
+  glDisable(GL_DEPTH_TEST);
+  glDisable(GL_CULL_FACE);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
   auto bound = 0;
 
   auto flip = [&]() {

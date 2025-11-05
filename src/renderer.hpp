@@ -22,8 +22,6 @@ private:
   bool combineDeferredLightBuffers();
   void renderPostProcesses();
 
-  gl::Vao dummyVao = {};
-
   engine::PerspectiveCamera camera;
 
   engine::scene::Graph graph;
@@ -41,6 +39,8 @@ private:
   std::vector<PointLight> pointLights = {};
   gl::Buffer pointLightBuffer = {};
   gl::Mapping pointLightMapping = {};
+
+  gl::CubeMap envMap = {};
 
   std::vector<std::unique_ptr<PostProcess>> postProcesses;
   PostProcess copyPP;
