@@ -5,7 +5,8 @@
 
 class PostProcess {
 public:
-  static std::expected<PostProcess, std::string> create(std::string_view file);
+  static std::expected<PostProcess, std::string> create(std::string_view name,
+                                                        std::string_view file);
 
 public:
   PostProcess() = default;

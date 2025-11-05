@@ -19,7 +19,7 @@ public:
   create(const gl::CubeMap& cubeMap) {
     auto programOpt = gl::Program::fromFiles({
         {SHADERDIR "fullscreen.vert.glsl", gl::Shader::Type::VERTEX},
-        {SHADERDIR "skybox.frag.glsl", gl::Shader::Type::FRAGMENT},
+        {SHADERDIR "postprocess/skybox.frag.glsl", gl::Shader::Type::FRAGMENT},
     });
     if (!programOpt.has_value()) {
       return std::unexpected(programOpt.error());

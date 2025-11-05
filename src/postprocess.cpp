@@ -1,7 +1,7 @@
 #include "postprocess.hpp"
 
 std::expected<PostProcess, std::string>
-PostProcess::create(std::string_view file) {
+PostProcess::create(std::string_view name, std::string_view file) {
   auto programOpt = gl::Program::fromFiles({
       {SHADERDIR "fullscreen.vert.glsl", gl::Shader::Type::VERTEX},
       {file, gl::Shader::Type::FRAGMENT},
@@ -10,5 +10,5 @@ PostProcess::create(std::string_view file) {
     return std::unexpected(programOpt.error());
   }
 
-  return PostProcess(std::move(programOpt.value()), file);
+  return PostProcess(std::move(programOpt.value()), name);
 }

@@ -148,7 +148,9 @@ struct fmt::formatter<DebugView> : fmt::formatter<std::string_view> {
 
 Renderer::Renderer(int width, int height, const char title[])
     : engine::App(width, height, title),
-      camera(0.1f, 10000.0f, 4.0f / 3.0f, glm::radians(90.0f)) {
+      camera(0.1f, 10000.0f,
+             static_cast<float>(width) / static_cast<float>(height),
+             glm::radians(90.0f)) {
 
   camera.onResize(width, height);
 
@@ -182,7 +184,7 @@ Renderer::Renderer(int width, int height, const char title[])
   }
   envMap = std::move(*cubeMapResult);
 
-  auto copyPPOpt = PostProcess::create(SHADERDIR "tex.frag.glsl");
+  auto copyPPOpt = PostProcess::create("Copy", SHADERDIR "tex.frag.glsl");
   if (!copyPPOpt) {
     Logger::error("Failed to create test post process: {}", copyPPOpt.error());
     bail();
@@ -255,14 +257,26 @@ Renderer::Renderer(int width, int height, const char title[])
 
   postProcesses.emplace_back(std::move(skyboxPtr));
 
+  auto fxaaRes =
+      PostProcess::create("FXAA", SHADERDIR "postprocess/fxaa.frag.glsl");
+  if (!fxaaRes) {
+    Logger::error("Failed to create FXAA post process: {}", fxaaRes.error());
+    bail();
+    return;
+  }
+  std::unique_ptr<PostProcess> fxaaPtr =
+      std::make_unique<PostProcess>(std::move(*fxaaRes));
+  postProcesses.emplace_back(std::move(fxaaPtr));
+
   setupPostProcesses(width, height);
   setupLightFbo(width, height);
 }
 
 void Renderer::onWindowResize(engine::Window::Size newSize) {
+  App::onWindowResize(newSize);
+  camera.onResize(newSize.width, newSize.height);
   setupPostProcesses(newSize.width, newSize.height);
   setupLightFbo(newSize.width, newSize.height);
-  camera.onResize(newSize.width, newSize.height);
 }
 
 void Renderer::update(const engine::FrameInfo& info) {
