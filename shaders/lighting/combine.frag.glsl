@@ -8,6 +8,7 @@ layout(location = 0) uniform vec3 ambient = vec3(0.1);
 
 in Vertex {
   vec2 uv;
+  vec3 viewDir;
 } IN;
 
 out vec4 fragColor;

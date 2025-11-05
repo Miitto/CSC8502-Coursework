@@ -16,6 +16,7 @@ layout(binding = 2) uniform samplerCube skybox;
 
 in Vertex {
   vec2 uv;
+  vec3 viewDir;
 } IN;
 
 out vec4 fragColor;
@@ -27,7 +28,7 @@ void main() {
     vec4 diffuse = texture(diffuse, IN.uv);
     fragColor = diffuse;
   } else {
-    vec4 env = texture(skybox, normalize((CAM.invProj * vec4(IN.uv * 2.0 - 1.0, 1.0, 1.0)).xyz));
+    vec4 env = texture(skybox, normalize(IN.viewDir));
     fragColor = env;
   }
 }

@@ -18,7 +18,7 @@ public:
     }
     waterProgram = std::move(*waterProgOpt);
 
-    auto diffuseImgOpt = engine::Image::fromFile(TEXTUREDIR "water.tga");
+    auto diffuseImgOpt = engine::Image::fromFile(TEXTUREDIR "water.tga", true);
     if (!diffuseImgOpt) {
       Logger::error("Failed to load water diffuse texture: {}",
                     diffuseImgOpt.error());
@@ -29,7 +29,7 @@ public:
     diffuseMap.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     diffuseMap.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    auto bumpImgOpt = engine::Image::fromFile(TEXTUREDIR "waterbump.png");
+    auto bumpImgOpt = engine::Image::fromFile(TEXTUREDIR "waterbump.png", true);
     if (!bumpImgOpt) {
       Logger::error("Failed to load water bump texture: {}",
                     bumpImgOpt.error());

@@ -42,39 +42,39 @@ namespace {
 
   std::expected<gl::CubeMap, std::string> getEnvMap() {
     auto topRes =
-        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_up.jpg", 4);
+        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_up.jpg", false, 4);
     if (!topRes) {
       return std::unexpected(
           fmt::format("Failed to load env map top: {}", topRes.error()));
     }
     auto bottomRes =
-        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_down.jpg", 4);
+        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_down.jpg", false, 4);
     if (!bottomRes) {
       return std::unexpected(
           fmt::format("Failed to load env map bottom: {}", bottomRes.error()));
     }
 
     auto leftRes =
-        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_east.jpg", 4);
+        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_east.jpg", false, 4);
     if (!leftRes) {
       return std::unexpected(
           fmt::format("Failed to load env map left: {}", leftRes.error()));
     }
 
     auto rightRes =
-        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_west.jpg", 4);
+        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_west.jpg", false, 4);
     if (!rightRes) {
       return std::unexpected(
           fmt::format("Failed to load env map right: {}", rightRes.error()));
     }
-    auto frontRes =
-        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_north.jpg", 4);
+    auto frontRes = engine::Image::fromFile(
+        TEXTUREDIR "envmaps/rusted_north.jpg", false, 4);
     if (!frontRes) {
       return std::unexpected(
           fmt::format("Failed to load env map front: {}", frontRes.error()));
     }
-    auto backRes =
-        engine::Image::fromFile(TEXTUREDIR "envmaps/rusted_south.jpg", 4);
+    auto backRes = engine::Image::fromFile(
+        TEXTUREDIR "envmaps/rusted_south.jpg", false, 4);
     if (!backRes) {
       return std::unexpected(
           fmt::format("Failed to load env map back: {}", backRes.error()));
@@ -302,6 +302,14 @@ void Renderer::render(const engine::FrameInfo& info) {
 
       ImGui::EndCombo();
     }
+
+    ImGui::SeparatorText("Post Processes");
+    for (auto& pp : postProcesses) {
+      bool enabled = pp->isEnabled();
+      if (ImGui::Checkbox(pp->name().data(), &enabled)) {
+        pp->setEnabled(enabled);
+      }
+    }
   }
 
   glEnable(GL_DEPTH_TEST);
@@ -448,6 +456,8 @@ void Renderer::renderPostProcesses() {
 
   for (size_t i = 0; i < postProcesses.size(); ++i) {
     auto& pp = postProcesses[i];
+    if (!pp->isEnabled())
+      continue;
     flip();
     pp->run(flip);
   }

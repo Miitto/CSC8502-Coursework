@@ -9,7 +9,7 @@ std::expected<Heightmap, std::string>
 Heightmap::fromFile(std::string_view heightFile, std::string_view diffuseFile,
                     std::string_view normalFile) {
   Logger::debug("Loading heightmap from heightFile: {}", heightFile);
-  auto heightImgRes = engine::Image::fromFile(heightFile, 1);
+  auto heightImgRes = engine::Image::fromFile(heightFile, true, 1);
 
   if (!heightImgRes.has_value()) {
     return std::unexpected(heightImgRes.error());
@@ -21,7 +21,7 @@ Heightmap::fromFile(std::string_view heightFile, std::string_view diffuseFile,
   heightTex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
   heightTex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-  auto diffuseImgRes = engine::Image::fromFile(diffuseFile);
+  auto diffuseImgRes = engine::Image::fromFile(diffuseFile, true);
 
   if (!diffuseImgRes.has_value()) {
     return std::unexpected(diffuseImgRes.error());
@@ -33,7 +33,7 @@ Heightmap::fromFile(std::string_view heightFile, std::string_view diffuseFile,
   diffuseTex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
   diffuseTex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-  auto normalImgRes = engine::Image::fromFile(normalFile);
+  auto normalImgRes = engine::Image::fromFile(normalFile, true);
 
   if (!normalImgRes.has_value()) {
     return std::unexpected(normalImgRes.error());

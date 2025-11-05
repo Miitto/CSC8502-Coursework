@@ -10,5 +10,5 @@ PostProcess::create(std::string_view file) {
     return std::unexpected(programOpt.error());
   }
 
-  return PostProcess(std::move(programOpt.value()));
+  return PostProcess(std::move(programOpt.value()), file);
 }

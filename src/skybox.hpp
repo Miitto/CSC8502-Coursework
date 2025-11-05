@@ -4,8 +4,9 @@
 #include <gl/gl.hpp>
 
 class Skybox : public PostProcess {
-  Skybox(const gl::CubeMap& cubeMap, gl::Program&& program)
-      : PostProcess(std::move(program)), cubeMap(cubeMap) {}
+  Skybox(const gl::CubeMap& cubeMap, gl::Program&& program,
+         std::string_view name)
+      : PostProcess(std::move(program), name), cubeMap(cubeMap) {}
 
 public:
   Skybox() = delete;
@@ -23,7 +24,7 @@ public:
     if (!programOpt.has_value()) {
       return std::unexpected(programOpt.error());
     }
-    return Skybox(cubeMap, std::move(*programOpt));
+    return Skybox(cubeMap, std::move(*programOpt), "Skybox");
   }
 
   void run(std::function<void()> flip) const override {

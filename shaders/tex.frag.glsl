@@ -2,6 +2,7 @@
 
 in Vertex {
   vec2 uv;
+  vec3 viewDir;
 } IN;
 
 layout(binding = 0) uniform sampler2D diffuse;

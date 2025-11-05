@@ -220,8 +220,8 @@ std::expected<Goober, std::string> Goober::create(size_t instances) {
     }
 
     auto& texturePath = *diffuseOpt;
-    auto imgOpt =
-        engine::Image::fromFile(std::string(TEXTUREDIR) + texturePath.data());
+    auto imgOpt = engine::Image::fromFile(
+        std::string(TEXTUREDIR) + texturePath.data(), true);
     if (!imgOpt) {
       return std::unexpected("Failed to load image: " +
                              std::string(texturePath));

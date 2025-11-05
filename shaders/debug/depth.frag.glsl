@@ -7,6 +7,7 @@ layout(location = 1) uniform float far;
 
 in Vertex {
   vec2 uv;
+  vec3 viewDir;
 } IN;
 
 out vec4 fragColor;

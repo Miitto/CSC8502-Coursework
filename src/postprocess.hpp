@@ -30,8 +30,18 @@ public:
     glDrawArrays(GL_TRIANGLES, 0, 3);
   }
 
+  inline bool isEnabled() const { return enabled; }
+  inline void setEnabled(bool enabled) { this->enabled = enabled; }
+  inline void enable() { enabled = true; }
+  inline void disable() { enabled = false; }
+
+  inline std::string_view name() const { return _name; }
+
 protected:
-  PostProcess(gl::Program&& program) : program(std::move(program)) {}
+  PostProcess(gl::Program&& program, std::string_view name)
+      : program(std::move(program)), _name(name) {}
 
   gl::Program program;
+  bool enabled = true;
+  std::string_view _name;
 };
