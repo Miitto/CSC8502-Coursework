@@ -31,6 +31,10 @@ public:
     vao.bindVertexBuffer(0, buffer.id(), offset, sizeof(InstanceData));
   }
 
+  const glm::vec3& position() const { return m.position; }
+  const glm::vec4& color() const { return m.color; }
+  const float& radius() const { return m.radius; }
+
 protected:
   InstanceData m;
 };

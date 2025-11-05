@@ -16,7 +16,7 @@ layout(binding = 2) uniform sampler2D materialTex;
 layout(binding = 3) uniform sampler2D depthTex;
 
 in Vertex {
-    vec3 fragPos;
+    vec3 lightPos;
     float lightRadius;
     vec4 lightColor;
 } IN;
@@ -26,28 +26,34 @@ layout(location = 1) out vec4 specularOut;
 
 void main() {
   vec2 uv = gl_FragCoord.xy / CAM.resolution;
+
   float depth = texture(depthTex, uv).r;
   vec3 ndc = vec3(uv, depth) * 2.0 - 1.0;
-  vec4 invClip = CAM.invProj * vec4(ndc, 1.0);
+  vec4 invClip = CAM.invViewProj * vec4(ndc, 1.0);
   vec3 world = invClip.xyz / invClip.w;
 
-  float dist = length(IN.fragPos - world);
+  float dist = length(IN.lightPos - world);
+
   float atten = 1.0 - clamp(dist / IN.lightRadius, 0.0, 1.0);
+
   if (atten == 0.0) {
       discard;
   }
 
   vec3 camPos = CAM.invView[3].xyz;
 
-  vec3 normal = normalize(texture(normalTex, uv).xyz * 2.0 - 1.0);
-  vec3 incident = normalize(IN.fragPos - world);
+  vec3 sampledNormal = texture(normalTex, uv).xyz;
+  vec3 normal = normalize(sampledNormal * 2.0 - 1.0);
+
+  vec3 incident = normalize(IN.lightPos - world);
   vec3 viewDir = normalize(camPos - world);
   vec3 halfDir = normalize(incident + viewDir);
 
-  float lambert = clamp(dot(normal, incident), 0.0, 1.0);
+  float lambert = clamp(dot(incident, normal), 0.0, 1.0);
   float rFactor = clamp(dot(halfDir, normal), 0.0, 1.0);
   float specFactor = pow(rFactor, 60);
   vec3 attenuated = IN.lightColor.rgb * atten;
+
   diffuseOut = vec4(attenuated * lambert, 1.0);
   specularOut = vec4(attenuated * specFactor * 0.33, 1.0);
 }

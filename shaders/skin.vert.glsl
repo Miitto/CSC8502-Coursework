@@ -17,7 +17,7 @@ layout(std430, binding = 1) readonly buffer JointMats {
 layout(location = 0) in vec3 position;
 layout(location = 2) in vec2 uv;
 layout(location = 3) in vec3 normal;
-layout(location = 4) in vec3 tangent;
+layout(location = 4) in vec4 tangent;
 layout(location = 5) in vec4 joinWeights;
 layout(location = 6) in ivec4 jointIndices;
 layout(location = 7) in mat4 modelMatrix;
@@ -42,11 +42,12 @@ void main() {
     skelPos += JOINTS.joints[jointStartIndex + jointIndex] * local * weight;
   }
 
-  mat4 mvp = CAM.viewProj *modelMatrix;
+  mat4 mvp = CAM.viewProj * modelMatrix;
   gl_Position = mvp * vec4(skelPos.xyz, 1.0);
 
   OUT.uv = uv;
   OUT.normal = normalize(mat3(modelMatrix) * normal);
-  OUT.tangent = normalize(mat3(modelMatrix) * tangent);
+  OUT.tangent = normalize(mat3(modelMatrix) * tangent.xyz);
+  OUT.binormal = normalize(cross(OUT.tangent, OUT.normal) * tangent.w);
   OUT.drawID = gl_DrawID;
 }

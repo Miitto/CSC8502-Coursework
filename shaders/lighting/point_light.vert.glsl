@@ -30,23 +30,23 @@ layout(std140, binding = 0) uniform CameraMats {
     vec2 resolution;
 } CAM;
 
-layout(location = 0) in vec3 lightPos;
-layout(location = 1) in float lightRadius;
-layout(location = 2) in vec4 lightColor;
+layout(location = 0) uniform vec3 lightPos;
+layout(location = 1) uniform float lightRadius;
+layout(location = 2) uniform vec4 lightColor;
 
 out Vertex {
-    vec3 fragPos;
+    vec3 lightPos;
     float lightRadius;
     vec4 lightColor;
 } OUT;
 
 void main() {
     vec3 scale = vec3(lightRadius);
-    vec3 worldPos = POS[INDICES[gl_VertexID]] * scale + lightPos;
+    vec3 worldPos = (POS[INDICES[gl_VertexID]] * scale) + lightPos;
 
-    gl_Position = vec4(worldPos, 1.0);
+    gl_Position = CAM.viewProj * vec4(worldPos, 1.0);
     
-    OUT.fragPos = lightPos;
+    OUT.lightPos = lightPos;
     OUT.lightRadius = lightRadius;
     OUT.lightColor = lightColor;
 }
