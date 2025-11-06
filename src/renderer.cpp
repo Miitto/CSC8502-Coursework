@@ -288,7 +288,6 @@ void Renderer::update(const engine::FrameInfo& info) {
 
 void Renderer::render(const engine::FrameInfo& info) {
   gbuffers->fbo.bind();
-  glDisable(GL_BLEND);
   glClearDepth(0.0f);
   glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 
@@ -332,6 +331,8 @@ void Renderer::render(const engine::FrameInfo& info) {
 
   glEnable(GL_CULL_FACE);
   glCullFace(GL_BACK);
+
+  glDisable(GL_BLEND);
 
   auto& frustum = camera.GetFrustum();
   nodeLists.renderLit(info, camera, frustum);

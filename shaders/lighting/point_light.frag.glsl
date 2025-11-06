@@ -40,6 +40,12 @@ void main() {
       discard;
   }
 
+
+  vec4 material = texture(materialTex, uv);
+  float emissivity = material.r;
+  float roughness = material.g;
+  float specular = material.b;
+
   vec3 camPos = CAM.invView[3].xyz;
 
   vec3 sampledNormal = texture(normalTex, uv).xyz;
@@ -51,9 +57,9 @@ void main() {
 
   float lambert = clamp(dot(incident, normal), 0.0, 1.0);
   float rFactor = clamp(dot(halfDir, normal), 0.0, 1.0);
-  float specFactor = pow(rFactor, 60);
+  float specFactor = pow(rFactor, mix(1.0, 256.0,roughness)) * specular;
   vec3 attenuated = IN.lightColor.rgb * atten;
 
-  diffuseOut = vec4(attenuated * lambert, 1.0);
-  specularOut = vec4(attenuated * specFactor * 0.33, 1.0);
+  diffuseOut = vec4(max(attenuated * lambert, vec3(emissivity)), 1.0);
+  specularOut = vec4(attenuated * specFactor, 1.0);
 }

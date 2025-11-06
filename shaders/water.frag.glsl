@@ -28,5 +28,5 @@ void main() {
 
   diffuseOut = vec4(diffuse, 1.0);
   normalOut = vec4(normalize(normal), 1.0);
-  materialOut = vec4(0.0, 0.0, 1.0, 1.0);
+  materialOut = vec4(0.0, 0.0, 0.5, 1.0);
 }

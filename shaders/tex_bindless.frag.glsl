@@ -13,6 +13,7 @@ in Vertex {
 struct TextureSet {
   uvec2 diffuse;
   uvec2 bump;
+  uvec2 material;
 };
 
 layout(binding = 2, std430) readonly buffer Textures {
@@ -43,7 +44,12 @@ void main() {
     normal = normalize(TBN * normalize(bump));
   }
 
+  materialOut = vec4(0.0, 0.3, 0.3, 1.0);
+  if (isTextureValid(tex.material)) {
+    materialOut = texture(sampler2D(tex.material), IN.uv);
+    materialOut.a = 1.0;
+  }
+
   diffuseOut = diffuse;
   normalOut = vec4(normal * 0.5 + 0.5, 1.0);
-  materialOut = vec4(1.0);
 }

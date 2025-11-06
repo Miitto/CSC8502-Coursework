@@ -77,14 +77,26 @@ void Goober::render(const engine::FrameInfo& info, const engine::Camera& camera,
       static_cast<uint32_t>(instances.size() * sizeof(InstanceData)));
 
   for (auto& tex : textures) {
-    tex.handle().use();
+    tex.images.diffuse.handle().use();
+    if (tex.images.bump.has_value()) {
+      tex.images.bump->handle().use();
+    }
+    if (tex.images.material.has_value()) {
+      tex.images.material->handle().use();
+    }
   }
 
   texHandleBuffer.bindBase(gl::Buffer::StorageTarget::STORAGE, 2);
   mesh.BatchSubmeshes(indirectBuffer, 0);
 
   for (auto& tex : textures) {
-    tex.handle().unuse();
+    tex.images.diffuse.handle().unuse();
+    if (tex.images.bump.has_value()) {
+      tex.images.bump->handle().unuse();
+    }
+    if (tex.images.material.has_value()) {
+      tex.images.material->handle().unuse();
+    }
   }
 
   engine::scene::Node::render(info, camera, frustum);
@@ -94,7 +106,7 @@ Goober::Goober(gl::Buffer&& vertexBuffer, gl::Buffer&& indexBuffer,
                gl::Buffer&& jointBuffer, engine::mesh::Mesh&& mesh,
                gl::Program&& program, engine::mesh::Animation&& animation,
                engine::mesh::Material&& material,
-               std::vector<gl::Texture>&& textures,
+               std::vector<engine::mesh::TextureSet>&& textures,
                gl::Buffer&& texHandleBuffer, size_t gooberCount)
     : engine::scene::Node(engine::scene::Node::RenderType::LIT, true),
       vertexBuffer(std::move(vertexBuffer)),
@@ -202,7 +214,7 @@ std::expected<Goober, std::string> Goober::create(size_t instances) {
 
   engine::mesh::Material material(MESHDIR "Role_T.mat");
 
-  std::vector<gl::Texture> textures;
+  std::vector<engine::mesh::TextureSet> textures;
 
   for (int i = 0; i < mesh.GetSubMeshCount(); ++i) {
     const engine::mesh::MaterialEntry* matEntry =
@@ -213,43 +225,23 @@ std::expected<Goober, std::string> Goober::create(size_t instances) {
                              std::to_string(i));
     }
 
-    auto diffuseOpt = matEntry->GetEntry("Diffuse");
-    if (!diffuseOpt) {
-      return std::unexpected("No diffuse texture for mesh layer " +
-                             std::to_string(i));
+    auto texRes = matEntry->LoadTextures(TEXTUREDIR);
+    if (!texRes) {
+      return std::unexpected("Failed to load textures for mesh layer " +
+                             std::to_string(i) + ": " + texRes.error());
     }
-
-    auto& texturePath = *diffuseOpt;
-    auto imgOpt = engine::Image::fromFile(
-        std::string(TEXTUREDIR) + texturePath.data(), true);
-    if (!imgOpt) {
-      return std::unexpected("Failed to load image: " +
-                             std::string(texturePath));
-    }
-    auto& img = imgOpt.value();
-
-    auto texture = img.toTexture();
-    if (!texture.isValid()) {
-      return std::unexpected("Failed to create texture from image: " +
-                             std::string(texturePath));
-    }
-    texture.generateMipmap();
-    texture.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    texture.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    texture.createHandle();
-
-    textures.emplace_back(std::move(texture));
+    textures.emplace_back(std::move(*texRes));
   }
 
-  std::vector<engine::mesh::TextureSet> textureHandles;
+  std::vector<engine::mesh::TextureHandleSet> textureHandles;
   textureHandles.reserve(textures.size());
   for (const auto& tex : textures) {
-    textureHandles.push_back({tex.handle()});
+    textureHandles.push_back({tex.handles});
   }
 
   gl::Buffer texHandleBuffer(
-      static_cast<GLuint>(textures.size() * sizeof(engine::mesh::TextureSet)),
+      static_cast<GLuint>(textures.size() *
+                          sizeof(engine::mesh::TextureHandleSet)),
       textureHandles.data());
 
   return Goober{std::move(vertexBuffer),    std::move(indexBuffer),

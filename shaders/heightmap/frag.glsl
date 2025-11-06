@@ -16,5 +16,5 @@ layout(location = 2) out vec4 materialOut;
 void main() {
   diffuseOut = vec4(pow(texture(diffuse, IN.uv).rgb, 1.0 / SRGB), 1.0);
   normalOut = vec4(texture(normalMap, IN.uv).rgb * 2.0 - 1.0, 1.0);
-  materialOut = vec4(1.0);
+  materialOut = vec4(0.0, 0.9, 0.1, 1.0);
 }

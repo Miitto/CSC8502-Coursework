@@ -16,8 +16,7 @@ Heightmap::fromFile(std::string_view heightFile, std::string_view diffuseFile,
   }
   auto& heightImg = heightImgRes.value();
 
-  auto heightTex = heightImg.toTexture();
-  heightTex.generateMipmap();
+  auto heightTex = heightImg.toTexture(-1);
   heightTex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
   heightTex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -28,8 +27,7 @@ Heightmap::fromFile(std::string_view heightFile, std::string_view diffuseFile,
   }
   auto& diffuseImg = diffuseImgRes.value();
 
-  auto diffuseTex = diffuseImg.toTexture();
-  diffuseTex.generateMipmap();
+  auto diffuseTex = diffuseImg.toTexture(-1);
   diffuseTex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
   diffuseTex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -41,7 +39,6 @@ Heightmap::fromFile(std::string_view heightFile, std::string_view diffuseFile,
   auto& normalImg = normalImgRes.value();
 
   auto normalTex = normalImg.toTexture();
-  normalTex.generateMipmap();
   normalTex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
   normalTex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 

@@ -48,7 +48,8 @@ class Goober : public engine::scene::Node {
   Goober(gl::Buffer&& vertexBuffer, gl::Buffer&& indexBuffer,
          gl::Buffer&& jointBuffer, engine::mesh::Mesh&& mesh,
          gl::Program&& program, engine::mesh::Animation&& animation,
-         engine::mesh::Material&& material, std::vector<gl::Texture>&& textures,
+         engine::mesh::Material&& material,
+         std::vector<engine::mesh::TextureSet>&& textures,
          gl::Buffer&& texHandleBuffer, size_t gooberCount);
 
 public:
@@ -69,7 +70,7 @@ protected:
   engine::mesh::Animation animation;
   engine::mesh::Material material;
 
-  std::vector<gl::Texture> textures = {};
+  std::vector<engine::mesh::TextureSet> textures = {};
   gl::Buffer texHandleBuffer = {};
 
   std::vector<std::shared_ptr<GooberInstance>> instances;
