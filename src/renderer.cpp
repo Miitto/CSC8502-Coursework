@@ -89,7 +89,9 @@ namespace {
       return std::unexpected("Env map faces have mismatched dimensions");
     }
 
-    cubeMap.storage(1, GL_RGBA8, size);
+    auto mipLevels = gl::Texture::calcMipLevels(size.x, size.y);
+
+    cubeMap.storage(mipLevels + 1, GL_RGBA8, size);
     cubeMap.subImage(0, 0, 0, gl::CubeMap::Face::POSITIVE_Y, size.x, size.y, 1,
                      GL_RGBA, GL_UNSIGNED_BYTE, topRes->getData());
     cubeMap.subImage(0, 0, 0, gl::CubeMap::Face::NEGATIVE_Y, size.x, size.y, 1,
@@ -102,8 +104,9 @@ namespace {
                      GL_RGBA, GL_UNSIGNED_BYTE, frontRes->getData());
     cubeMap.subImage(0, 0, 0, gl::CubeMap::Face::POSITIVE_Z, size.x, size.y, 1,
                      GL_RGBA, GL_UNSIGNED_BYTE, backRes->getData());
+    cubeMap.generateMipmaps();
 
-    cubeMap.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    cubeMap.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     cubeMap.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     cubeMap.setParameter(GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     cubeMap.setParameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
