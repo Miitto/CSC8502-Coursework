@@ -44,10 +44,9 @@ void main() {
     normal = normalize(TBN * normalize(bump));
   }
 
-  materialOut = vec4(0.0, 0.3, 0.3, 1.0);
+  materialOut = vec4(0.0, 0.3, 0.3, 0.0);
   if (isTextureValid(tex.material)) {
     materialOut = texture(sampler2D(tex.material), IN.uv);
-    materialOut.a = 1.0;
   }
 
   diffuseOut = diffuse;

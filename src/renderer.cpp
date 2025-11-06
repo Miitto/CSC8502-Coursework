@@ -257,6 +257,18 @@ Renderer::Renderer(int width, int height, const char title[])
 
   postProcesses.emplace_back(std::move(skyboxPtr));
 
+  auto reflectionsOpt = PostProcess::create(
+      "Reflections", SHADERDIR "postprocess/reflections.frag.glsl");
+  if (!reflectionsOpt) {
+    Logger::error("Failed to create reflections post process");
+    bail();
+    return;
+  }
+  std::unique_ptr<PostProcess> reflectionsPPtr =
+      std::make_unique<PostProcess>(std::move(*reflectionsOpt));
+
+  postProcesses.emplace_back(std::move(reflectionsPPtr));
+
   auto fxaaRes =
       PostProcess::create("FXAA", SHADERDIR "postprocess/fxaa.frag.glsl");
   if (!fxaaRes) {
@@ -264,6 +276,7 @@ Renderer::Renderer(int width, int height, const char title[])
     bail();
     return;
   }
+
   std::unique_ptr<PostProcess> fxaaPtr =
       std::make_unique<PostProcess>(std::move(*fxaaRes));
   postProcesses.emplace_back(std::move(fxaaPtr));
@@ -289,7 +302,7 @@ void Renderer::update(const engine::FrameInfo& info) {
 void Renderer::render(const engine::FrameInfo& info) {
   gbuffers->fbo.bind();
   glClearDepth(0.0f);
-  glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
   auto nodeLists = graph.BuildNodeLists(camera);
 
@@ -467,7 +480,12 @@ void Renderer::renderPostProcesses() {
     postProcessFlipFlops[bound].fbo.bind();
   };
 
-  gbuffers->depthStencil.bind(1);
+  gbuffers->normal.bind(1);
+  gbuffers->material.bind(2);
+  gbuffers->depthStencil.bind(3);
+  envMap.bind(4);
+  lightFbo.diffuse.bind(5);
+  lightFbo.specular.bind(6);
 
   for (size_t i = 0; i < postProcesses.size(); ++i) {
     auto& pp = postProcesses[i];
