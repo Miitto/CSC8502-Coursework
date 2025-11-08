@@ -59,7 +59,7 @@ public:
                        const gl::Mapping& matrixMapping) const {
 
     glm::mat4 perspective =
-        glm::perspective(glm::radians(90.0f), 1.0f, m.radius, 1.0f);
+        glm::perspective(glm::radians(90.0f), 1.0f, m.radius, .1f);
 
     shadowFbo.bind();
     glClearDepth(0.0f);
