@@ -1,11 +1,12 @@
 #include "renderer.hpp"
 
-#include "goober.hpp"
 #include "heightmap.hpp"
 #include "logger/logger.hpp"
 #include "skybox.hpp"
 #include "water.hpp"
 #include <engine/globals.hpp>
+#include <engine/mesh_node.hpp>
+#include <engine\mesh\mesh.hpp>
 #include <gl/structs.hpp>
 #include <glm\ext\matrix_transform.hpp>
 #include <imgui/imgui.h>
@@ -23,21 +24,133 @@ namespace {
   };
 
   DebugView debugView = DebugView::NONE;
-  void setupGoober(Goober& goober) {
-    goober[0].SetTransform(
-        glm::translate(glm::mat4(1.0f), glm::vec3(9.5f, 268.75f, 0.0f)));
-    goober[1].SetTransform(
-        glm::translate(glm::mat4(1.0f), glm::vec3(25.f, 268.75f, 0.0f)));
-    goober[1].setFrame(5);
-    goober[2].SetTransform(
-        glm::translate(glm::mat4(1.0f), glm::vec3(40.f, 268.75f, 0.0f)));
-    goober[2].setFrame(10);
-    goober[3].SetTransform(
-        glm::translate(glm::mat4(1.0f), glm::vec3(55.f, 268.75f, 0.0f)));
-    goober[3].setFrame(15);
-    goober[4].SetTransform(
-        glm::translate(glm::mat4(1.0f), glm::vec3(70.f, 268.75f, 0.0f)));
-    goober[4].setFrame(20);
+
+  std::optional<std::string> setupMeshes(engine::scene::Graph& graph,
+                                         gl::Vao& vao, GLuint& verticesSize,
+                                         GLuint& jointsOffset,
+                                         GLuint& jointsSize,
+                                         gl::Buffer& staticBuffer) {
+    auto gooberMeshDataOpt = engine::mesh::Data::fromFile(MESHDIR "Role_T.msh");
+    if (!gooberMeshDataOpt) {
+      return gooberMeshDataOpt.error();
+    }
+    auto& gooberMeshData = gooberMeshDataOpt.value();
+    engine::mesh::Animation gooberAnimation(MESHDIR "Role_T.anm");
+
+    engine::mesh::Mesh gooberMesh(gooberMeshData);
+
+    struct MeshWithData {
+      engine::mesh::Mesh& mesh;
+      engine::mesh::Data& data;
+      std::optional<engine::mesh::Animation*> anim;
+    };
+
+    MeshWithData gooberWithData = {gooberMesh, gooberMeshData,
+                                   &gooberAnimation};
+
+    std::vector<MeshWithData> meshes = {gooberWithData};
+
+    uint32_t vertices = 0;
+    uint32_t indices = 0;
+    uint32_t joints = 0;
+    for (const auto& mesh : meshes) {
+      vertices += static_cast<uint32_t>(mesh.data.vertices().size());
+      indices += static_cast<uint32_t>(mesh.data.indices().size());
+      if (mesh.anim)
+        joints += (**mesh.anim).GetFrameCount() * (**mesh.anim).GetJointCount();
+    }
+
+    verticesSize = vertices * sizeof(engine::mesh::WeightedVertex);
+
+    uint32_t indexOffset =
+        gl::Buffer::roundToAlignment(verticesSize, sizeof(uint32_t));
+    uint32_t indicesSize = indices * sizeof(uint32_t);
+
+    jointsOffset = gl::Buffer::roundToAlignment(
+        indexOffset + indicesSize, gl::UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+    jointsSize = joints * sizeof(glm::mat4);
+
+    uint32_t bufferSize = jointsOffset + jointsSize;
+
+    gl::Buffer stagingBuffer(bufferSize, nullptr,
+                             gl::Buffer::Usage::WRITE |
+                                 gl::Buffer::Usage::DYNAMIC);
+    {
+      auto stagingMapping = stagingBuffer.map(gl::Buffer::Mapping::WRITE);
+      {
+        gl::MappingRef sm = stagingMapping;
+
+        GLuint written = 0;
+        for (const auto& mesh : meshes) {
+          mesh.mesh.writeVertexData(gooberMeshData, written, sm);
+
+          sm += sizeof(engine::mesh::WeightedVertex);
+        }
+      }
+
+      {
+        gl::MappingRef sm = {stagingMapping, indexOffset};
+        GLuint offset = indexOffset;
+        for (const auto& mesh : meshes) {
+          mesh.mesh.writeIndexData(mesh.data, offset, sm);
+          sm += static_cast<uint32_t>(mesh.data.indices().size() *
+                                      sizeof(uint32_t));
+        }
+      }
+
+      gl::MappingRef sm = {stagingMapping, jointsOffset};
+      uint32_t jointsWritten = 0;
+      for (const auto& mesh : meshes) {
+        if (mesh.anim) {
+          auto anim = *mesh.anim.value();
+          mesh.mesh.writeJointData(mesh.data, anim, sm, jointsWritten);
+          auto writtenJoints = anim.GetFrameCount() * anim.GetJointCount();
+          sm += writtenJoints * sizeof(glm::mat4);
+          jointsWritten += writtenJoints;
+        }
+      }
+    }
+
+    staticBuffer.init(bufferSize);
+    stagingBuffer.copyTo(staticBuffer, 0, 0, bufferSize);
+
+    struct GooberSetup {
+      glm::vec3 position;
+      float frame;
+    };
+
+    std::array<GooberSetup, 5> gooberSetups = {{
+        {{9.5f, 268.75f, 0.0f}, 0.0f},
+        {{25.f, 268.75f, 0.0f}, 5.0f},
+        {{40.f, 268.75f, 0.0f}, 10.0f},
+        {{55.f, 268.75f, 0.0f}, 15.0f},
+        {{70.f, 268.75f, 0.0f}, 20.0f},
+    }};
+
+    auto gooberMeshPtr =
+        std::make_shared<engine::mesh::Mesh>(std::move(gooberMesh));
+
+    for (auto& setup : gooberSetups) {
+      std::shared_ptr gooberNode =
+          std::make_shared<engine::scene::MeshNode>(gooberMeshPtr);
+      gooberNode->SetTransform(glm::translate(glm::mat4(1.0f), setup.position));
+      gooberNode->SetScale(glm::vec3(10.f));
+      gooberNode->SetBoundingRadius(15.f);
+      gooberNode->setFrame(setup.frame);
+      graph.AddChild(std::move(gooberNode));
+    }
+
+    vao.attribFormat(0, 3, GL_FLOAT, GL_FALSE,
+                     offsetof(engine::mesh::Vertex, position));
+    vao.attribFormat(1, 2, GL_FLOAT, GL_FALSE,
+                     offsetof(engine::mesh::Vertex, texCoord));
+    vao.attribFormat(2, 3, GL_FLOAT, GL_FALSE,
+                     offsetof(engine::mesh::Vertex, normal));
+    vao.attribFormat(3, 4, GL_FLOAT, GL_FALSE,
+                     offsetof(engine::mesh::Vertex, tangent));
+    vao.bufferDivisor(1, 1);
+
+    return std::nullopt;
   }
 
   std::expected<gl::CubeMap, std::string> getEnvMap() {
@@ -170,15 +283,6 @@ Renderer::Renderer(int width, int height, const char title[])
 
   camera.SetPosition({0.f, 300.f, 0.0f});
 
-  auto gooberResult = Goober::create(5);
-  if (!gooberResult) {
-    Logger::error("Failed to create Goober: {}", gooberResult.error());
-    bail();
-    return;
-  }
-  setupGoober(*gooberResult);
-  graph.AddChild(std::make_shared<Goober>(std::move(gooberResult.value())));
-
   auto cubeMapResult = getEnvMap();
   if (!cubeMapResult) {
     Logger::error("Failed to load environment map: {}", cubeMapResult.error());
@@ -205,6 +309,27 @@ Renderer::Renderer(int width, int height, const char title[])
     return;
   }
   depthView = std::move(*depthViewOpt);
+
+  auto meshSetupError = setupMeshes(graph, batchVao, staticVertexSize,
+                                    jointOffset, jointSize, staticBuffer);
+  if (meshSetupError) {
+    Logger::error("Failed to setup meshes: {}", *meshSetupError);
+    bail();
+    return;
+  }
+  batchVao.bindVertexBuffer(0, skinnedVerticesBuffer.id(), 0,
+                            sizeof(engine::mesh::Vertex));
+
+  auto batchProgramOpt = gl::Program::fromFiles(
+      {{SHADERDIR "batch.vert.glsl", gl::Shader::Type::VERTEX},
+       {SHADERDIR "tex_bindless.frag.glsl", gl::Shader::Type::FRAGMENT}});
+  if (!batchProgramOpt) {
+    Logger::error("Failed to create batch program: {}",
+                  batchProgramOpt.error());
+    bail();
+    return;
+  }
+  batchProgram = std::move(*batchProgramOpt);
 
   auto pointLightOpt = gl::Program::fromFiles(
       {{SHADERDIR "lighting/point_light.vert.glsl", gl::Shader::Type::VERTEX},
@@ -303,11 +428,84 @@ void Renderer::update(const engine::FrameInfo& info) {
 }
 
 void Renderer::render(const engine::FrameInfo& info) {
+  (void)info;
   gbuffers->fbo.bind();
   glClearDepth(0.0f);
   glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
   auto nodeLists = graph.BuildNodeLists(camera);
+
+  engine::scene::Node::DrawParams drawParams = {0, 0, 0};
+  for (const auto& node : nodeLists.lit) {
+    drawParams += node.node->getBatchDrawParams();
+  }
+
+  GLuint verticesSize = drawParams.maxVertices * sizeof(engine::mesh::Vertex);
+  if (verticesSize > skinnedVerticesBuffer.size()) {
+    skinnedVerticesBuffer = {};
+    skinnedVerticesBuffer.init(verticesSize);
+  }
+
+  staticBuffer.bindRange(gl::Buffer::StorageTarget::STORAGE, 1, 0,
+                         staticVertexSize);
+  skinnedVerticesBuffer.bindRange(gl::Buffer::StorageTarget::STORAGE, 2, 0,
+                                  verticesSize);
+  staticBuffer.bindRange(gl::Buffer::StorageTarget::STORAGE, 3, jointOffset,
+                         jointSize);
+  {
+    GLuint writtenVertices = 0;
+    for (const auto& node : nodeLists.lit) {
+      node.node->skinVertices(writtenVertices);
+    }
+  }
+
+  auto indirectSize = static_cast<GLuint>(
+      drawParams.maxIndirectCmds * sizeof(gl::DrawElementsIndirectCommand));
+  auto instanceSize =
+      static_cast<GLuint>(drawParams.instances * sizeof(glm::mat4));
+
+  auto dynamicSize = indirectSize + instanceSize;
+  if (dynamicBuffer.size() < dynamicSize) {
+    dynamicBuffer = {};
+    dynamicBuffer.init(dynamicSize, nullptr,
+                       gl::Buffer::Usage::WRITE |
+                           gl::Buffer::Usage::PERSISTENT |
+                           gl::Buffer::Usage::COHERENT);
+    dynamicMapping = dynamicBuffer.map(gl::Buffer::Mapping::WRITE |
+                                       gl::Buffer::Mapping::PERSISTENT |
+                                       gl::Buffer::Mapping::COHERENT);
+    batchVao.bindVertexBuffer(1, dynamicBuffer.id(), indirectSize,
+                              sizeof(glm::mat4));
+  }
+
+  GLuint writtenDraws = 0;
+  {
+    gl::MappingRef indirectMap = {dynamicMapping, 0};
+    gl::MappingRef instanceMap = {dynamicMapping,
+                                  static_cast<GLuint>(indirectSize)};
+    for (auto& node : nodeLists.lit) {
+      node.node->writeInstanceData(instanceMap);
+      node.node->writeBatchedDraws(indirectMap, writtenDraws);
+    }
+  }
+
+  {
+    auto bg = batchVao.bindGuard();
+    batchProgram.bind();
+    dynamicBuffer.bind(gl::Buffer::BasicTarget::DRAW_INDIRECT);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_GREATER);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+
+    glDisable(GL_BLEND);
+
+    glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr,
+                                writtenDraws, 0);
+  }
 
   {
     engine::gui::GuiWindow cameraFrame("Camera");
@@ -340,18 +538,6 @@ void Renderer::render(const engine::FrameInfo& info) {
       }
     }
   }
-
-  glEnable(GL_DEPTH_TEST);
-  glDepthFunc(GL_GREATER);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-  glEnable(GL_CULL_FACE);
-  glCullFace(GL_BACK);
-
-  glDisable(GL_BLEND);
-
-  auto& frustum = camera.GetFrustum();
-  nodeLists.renderLit(info, camera, frustum);
 
   if (debugView == DebugView::DIFFUSE || debugView == DebugView::NORMAL ||
       debugView == DebugView::MATERIAL || debugView == DebugView::DEPTH) {

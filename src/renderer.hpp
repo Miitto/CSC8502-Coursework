@@ -26,6 +26,18 @@ private:
 
   engine::scene::Graph graph;
 
+  GLuint staticVertexSize = 0;
+  GLuint jointOffset = 0;
+  GLuint jointSize = 0;
+
+  gl::Buffer staticBuffer;
+  gl::Buffer skinnedVerticesBuffer;
+  gl::Buffer dynamicBuffer;
+  gl::Mapping dynamicMapping;
+
+  gl::Vao batchVao;
+  gl::Program batchProgram;
+
   gl::Program pointLight;
   gl::Program deferredLightCombine;
 
