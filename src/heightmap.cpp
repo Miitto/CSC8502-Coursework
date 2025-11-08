@@ -53,16 +53,25 @@ Heightmap::fromFile(std::string_view heightFile, std::string_view diffuseFile,
   }
   auto& prog = progOpt.value();
 
+  auto depthProgOpt = gl::Program::fromFiles(
+      {{SHADERDIR "heightmap/vert.glsl", gl::Shader::Type::VERTEX},
+       {SHADERDIR "heightmap/tess_con.glsl", gl::Shader::Type::TESS_CONTROL},
+       {SHADERDIR "heightmap/shadow.tess_eval.glsl",
+        gl::Shader::Type::TESS_EVAL},
+       {SHADERDIR "lighting/shadow.geom.glsl", gl::Shader::Type::GEOMETRY},
+       {SHADERDIR "lighting/depth_to_linear.frag.glsl",
+        gl::Shader::Type::FRAGMENT}});
+  if (!depthProgOpt) {
+    return std::unexpected(depthProgOpt.error());
+  }
+  auto& depthProg = depthProgOpt.value();
+
   return Heightmap(std::move(heightTex), std::move(diffuseTex),
-                   std::move(normalTex), std::move(prog));
+                   std::move(normalTex), std::move(prog), std::move(depthProg));
 }
 
-void Heightmap::render(const engine::FrameInfo& info,
-                       const engine::Camera& camera,
-                       const engine::Frustum& frustum) {
+void Heightmap::render(const engine::Frustum& frustum) {
   program.bind();
-
-  camera.bindMatrixBuffer(0);
 
   auto bg = engine::globals::DUMMY_VAO.bindGuard();
 
@@ -75,5 +84,15 @@ void Heightmap::render(const engine::FrameInfo& info,
   glPatchParameteri(GL_PATCH_VERTICES, 4);
   glDrawArrays(GL_PATCHES, 0, 4 * chunksPerAxis * chunksPerAxis);
 
-  engine::scene::Node::render(info, camera, frustum);
+  engine::scene::Node::render(frustum);
+}
+
+void Heightmap::renderDepthOnly() {
+  depthProgram.bind();
+  auto bg = engine::globals::DUMMY_VAO.bindGuard();
+  heightTex.bind(0);
+  constexpr int chunksPerAxis = 7;
+  glPatchParameteri(GL_PATCH_VERTICES, 4);
+  glDrawArrays(GL_PATCHES, 0, 4 * chunksPerAxis * chunksPerAxis);
+  engine::scene::Node::renderDepthOnly();
 }

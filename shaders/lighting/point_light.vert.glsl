@@ -35,9 +35,9 @@ layout(location = 1) uniform float lightRadius;
 layout(location = 2) uniform vec4 lightColor;
 
 out Vertex {
-    vec3 lightPos;
-    float lightRadius;
-    vec4 lightColor;
+  vec3 lightPos;
+  float lightRadius;
+  vec4 lightColor;
 } OUT;
 
 void main() {

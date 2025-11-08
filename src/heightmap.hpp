@@ -9,9 +9,11 @@
 
 class Heightmap : public engine::scene::Node {
   Heightmap(gl::Texture&& heightTex, gl::Texture&& diffuseTex,
-            gl::Texture&& normalTex, gl::Program&& prog)
+            gl::Texture&& normalTex, gl::Program&& prog,
+            gl::Program&& depthProg)
       : heightTex(std::move(heightTex)), diffuseTex(std::move(diffuseTex)),
         normalTex(std::move(normalTex)), program(std::move(prog)),
+        depthProgram(std::move(depthProg)),
         engine::scene::Node(engine::scene::Node::RenderType::LIT, true) {
     std::vector<gl::RawTextureHandle> handles = {this->heightTex.rawHandle(),
                                                  this->diffuseTex.rawHandle()};
@@ -23,8 +25,8 @@ public:
   fromFile(std::string_view heightFile, std::string_view diffuseFile,
            std::string_view normalFile);
 
-  void render(const engine::FrameInfo& info, const engine::Camera& camera,
-              const engine::Frustum& frustum) override;
+  void render(const engine::Frustum& frustum) override;
+  void renderDepthOnly() override;
 
 protected:
   gl::Texture heightTex;
@@ -32,4 +34,5 @@ protected:
   gl::Texture normalTex;
 
   gl::Program program;
+  gl::Program depthProgram;
 };

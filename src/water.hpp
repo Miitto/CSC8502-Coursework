@@ -18,6 +18,18 @@ public:
     }
     waterProgram = std::move(*waterProgOpt);
 
+    auto waterDepthProgOpt = gl::Program::fromFiles(
+        {{SHADERDIR "water_shadow.vert.glsl", gl::Shader::Type::VERTEX},
+         {SHADERDIR "lighting/shadow.geom.glsl", gl::Shader::Type::GEOMETRY},
+         {SHADERDIR "lighting/depth_to_linear.frag.glsl",
+          gl::Shader::Type::FRAGMENT}});
+    if (!waterDepthProgOpt) {
+      Logger::error("Failed to create water depth program: {}",
+                    waterDepthProgOpt.error());
+      throw std::runtime_error("Failed to create water depth program");
+    }
+    waterDepthProgram = std::move(*waterDepthProgOpt);
+
     auto diffuseImgOpt = engine::Image::fromFile(TEXTUREDIR "water.tga", true);
     if (!diffuseImgOpt) {
       Logger::error("Failed to load water diffuse texture: {}",
@@ -48,11 +60,8 @@ public:
   }
 
   void update(const engine::FrameInfo& frame) override { (void)frame; }
-  void render(const engine::FrameInfo& info, const engine::Camera& camera,
-              const engine::Frustum& frustum) override {
-    (void)info;
+  void render(const engine::Frustum& frustum) override {
     (void)frustum;
-    (void)camera;
     auto bg = engine::globals::DUMMY_VAO.bindGuard();
     waterProgram.bind();
     diffuseMap.bind(0);
@@ -62,6 +71,19 @@ public:
     glUniform1f(1, yLevel);
     glUniform1f(2, 10.f);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    engine::scene::Node::render(frustum);
+  }
+
+  void renderDepthOnly() override {
+    auto bg = engine::globals::DUMMY_VAO.bindGuard();
+    waterDepthProgram.bind();
+
+    glUniform1f(1, yLevel);
+    glUniform1f(2, 10.f);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    engine::scene::Node::renderDepthOnly();
   }
 
 private:
@@ -69,6 +91,8 @@ private:
   float yLevel;
 
   gl::Program waterProgram;
+  gl::Program waterDepthProgram;
+
   gl::Texture diffuseMap;
   gl::Texture bumpMap;
   const gl::CubeMap& envMap;

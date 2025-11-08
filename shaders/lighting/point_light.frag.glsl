@@ -14,15 +14,29 @@ layout(binding = 0) uniform sampler2D diffuseTex;
 layout(binding = 1) uniform sampler2D normalTex;
 layout(binding = 2) uniform sampler2D materialTex;
 layout(binding = 3) uniform sampler2D depthTex;
+layout(binding = 4) uniform samplerCube shadowMap;
 
 in Vertex {
-    vec3 lightPos;
-    float lightRadius;
-    vec4 lightColor;
+  vec3 lightPos;
+  float lightRadius;
+  vec4 lightColor;
 } IN;
 
 layout(location = 0) out vec4 diffuseOut;
 layout(location = 1) out vec4 specularOut;
+
+float calculateOcclusion(vec3 fragPos) {
+  vec3 worldToLight = fragPos - IN.lightPos;
+  float depth = 1.0 - texture(shadowMap, worldToLight).r;
+
+  depth *= IN.lightRadius;
+
+  float currentDepth = length(worldToLight);
+
+  float bias = 0.05;
+  float shadow = currentDepth - bias > depth ? 0.0 : 1.0;
+  return shadow;
+}
 
 void main() {
   vec2 uv = gl_FragCoord.xy / CAM.resolution;
@@ -39,7 +53,6 @@ void main() {
   if (atten == 0.0) {
       discard;
   }
-
 
   vec4 material = texture(materialTex, uv);
   float emissivity = material.r;
@@ -60,6 +73,8 @@ void main() {
   float specFactor = pow(rFactor, mix(1.0, 256.0,roughness)) * specular;
   vec3 attenuated = IN.lightColor.rgb * atten;
 
-  diffuseOut = vec4(max(attenuated * lambert, vec3(emissivity)), 1.0);
-  specularOut = vec4(attenuated * specFactor, 1.0);
+  float shadowOcclusion = calculateOcclusion(world);
+
+  diffuseOut = vec4(max(attenuated * lambert, vec3(emissivity)), 1.0) * shadowOcclusion;
+  specularOut = vec4(attenuated * specFactor, 1.0) * shadowOcclusion;
 }

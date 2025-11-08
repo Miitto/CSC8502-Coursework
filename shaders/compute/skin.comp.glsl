@@ -31,12 +31,12 @@ layout(std430, binding = 3) readonly buffer JointMats {
 } JOINTS;
 
 layout(location = 0) uniform uvec4 uInfo;
-layout(location = 1) uniform float frame;
+layout(location = 1) uniform uint frame;
 
 void main() {
   uint inVertexStart = uInfo.x;
   uint jointStartOffset = uInfo.y;
-  uint frameCount = uInfo.z;
+  uint jointCount = uInfo.z;
   uint outVertexStart = uInfo.w;
 
   uint vIndex = gl_GlobalInvocationID.x + inVertexStart;
@@ -48,27 +48,16 @@ void main() {
 
   vec4 skelPos = vec4(0.0);
 
-  if (frameCount != 0) {
-    uint frame1i = uint(frame);
-    float frameMix = fract(frame);
-    uint frame1 = (frame1i * frameCount) + jointStartOffset;
-    uint frame2 = ((frame1i + 1) * frameCount) + jointStartOffset;
+  if (jointCount != 0) {
+    uint frameIndex = (frame * jointCount) + jointStartOffset;
 
     for (int i = 0; i < 4; ++i) {
       int jointIndex = v.weightIndices[i];
       float weight = v.weights[i];
 
-      mat4 jointOne = JOINTS.joints[frame1 + jointIndex];
-      mat4 jointTwo = JOINTS.joints[frame2 + jointIndex];
+      mat4 jointOne = JOINTS.joints[frameIndex + jointIndex];
 
-      mat4 jointMat;
-      jointMat[0] = normalize(mix(jointOne[0], jointTwo[0], frameMix));
-      jointMat[1] = normalize(mix(jointOne[1], jointTwo[1], frameMix));
-      jointMat[2] = normalize(mix(jointOne[2], jointTwo[2], frameMix));
-      jointMat[3] = normalize(mix(jointOne[3], jointTwo[3], frameMix));
-
-
-      skelPos += jointMat * local * weight;
+      skelPos += jointOne * local * weight;
     }
   } else {
     skelPos = local;

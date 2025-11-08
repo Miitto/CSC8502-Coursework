@@ -18,6 +18,18 @@ public:
   void onWindowResize(engine::Window::Size newSize) override;
 
 private:
+  void debugUi(const engine::FrameInfo& frame,
+               const engine::scene::Graph::NodeLists& nodeLists);
+
+  struct BatchSetup {
+    uint32_t textureOffset;
+    uint32_t textureSize;
+    uint32_t draws;
+  };
+
+  BatchSetup setupBatches();
+  void renderLit(const engine::scene::Graph::NodeLists& nodeLists,
+                 const BatchSetup& batch);
   bool renderPointLights();
   bool combineDeferredLightBuffers();
   void renderPostProcesses();
@@ -30,6 +42,8 @@ private:
   GLuint jointOffset = 0;
   GLuint jointSize = 0;
 
+  gl::Program skinProgram;
+
   gl::Buffer staticBuffer;
   gl::Buffer skinnedVerticesBuffer;
   gl::Buffer dynamicBuffer;
@@ -37,6 +51,10 @@ private:
 
   gl::Vao batchVao;
   gl::Program batchProgram;
+
+  gl::Program batchShadowProgram;
+  gl::Buffer shadowMatrixBuffer;
+  gl::Mapping shadowMatrixMapping;
 
   gl::Program pointLight;
   gl::Program deferredLightCombine;

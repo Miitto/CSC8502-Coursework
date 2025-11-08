@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 
 #include "heightmap.hpp"
+#include "light.hpp"
 #include "logger/logger.hpp"
 #include "skybox.hpp"
 #include "water.hpp"
@@ -25,11 +26,100 @@ namespace {
 
   DebugView debugView = DebugView::NONE;
 
+  std::expected<engine::mesh::TextureSet, std::string>
+  createTextureSet(const engine::mesh::MaterialEntry& matEntry,
+                   const std::string_view name) {
+    engine::mesh::TextureSet texSet;
+    auto diffuseImgPathOpt = matEntry.GetEntry("Diffuse");
+    if (!diffuseImgPathOpt) {
+      return std::unexpected(
+          fmt::format("Material {} missing diffuse texture", name));
+    }
+    auto diffuseRes = engine::Image::fromFile(
+        std::string(TEXTUREDIR) + diffuseImgPathOpt->data(), true, 4);
+    if (!diffuseRes) {
+      return std::unexpected(
+          fmt::format("Failed to load diffuse texture: {} for {}",
+                      diffuseRes.error(), name));
+    }
+    auto diffuseTex = diffuseRes->toTexture(-1);
+    diffuseTex.label(fmt::format("{} Diffuse", name).c_str());
+    diffuseTex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    diffuseTex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    texSet.images.diffuse = std::move(diffuseTex);
+    auto diffuseHandle = texSet.images.diffuse.createHandle();
+    if (!diffuseHandle.isValid()) {
+      return std::unexpected(
+          fmt::format("Failed to create diffuse texture handle for {}", name));
+    }
+    diffuseHandle.use();
+    texSet.handles.diffuse = diffuseHandle.handle();
+
+    auto normalImgPathOpt = matEntry.GetEntry("Normal");
+    if (normalImgPathOpt) {
+      auto normalRes = engine::Image::fromFile(
+          std::string(TEXTUREDIR) + (normalImgPathOpt->data()), true, 4);
+      if (!normalRes) {
+        return std::unexpected(
+            fmt::format("Failed to load goober normal texture: {} for {}",
+                        normalRes.error(), name));
+      }
+      auto normalTex = normalRes->toTexture(-1);
+      normalTex.label(fmt::format("{} Normal", name).c_str());
+      normalTex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+      normalTex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      texSet.images.bump = std::move(normalTex);
+      auto normalHandle = texSet.images.bump->createHandle();
+      if (!normalHandle.isValid()) {
+        return std::unexpected(fmt::format(
+            "Failed to create goober normal texture handle for {}", name));
+      }
+      normalHandle.use();
+      texSet.handles.bump = normalHandle.handle();
+    }
+
+    auto materialImgPathOpt = matEntry.GetEntry("Material");
+    if (materialImgPathOpt) {
+      auto materialRes = engine::Image::fromFile(
+          std::string(TEXTUREDIR) + (materialImgPathOpt->data()), true, 4);
+      if (!materialRes) {
+        return std::unexpected(
+            fmt::format("Failed to load goober material texture: {} for {}",
+                        materialRes.error(), name));
+      }
+      auto materialTex = materialRes->toTexture(-1);
+      materialTex.label(fmt::format("{} Material", name).c_str());
+      materialTex.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+      materialTex.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      texSet.images.material = std::move(materialTex);
+      auto materialHandle = texSet.images.material->createHandle();
+      if (!materialHandle.isValid()) {
+        return std::unexpected(fmt::format(
+            "Failed to create goober material texture handle for {}", name));
+      }
+      materialHandle.use();
+      texSet.handles.material = materialHandle.handle();
+    }
+
+    return texSet;
+  }
+
   std::optional<std::string> setupMeshes(engine::scene::Graph& graph,
                                          gl::Vao& vao, GLuint& verticesSize,
                                          GLuint& jointsOffset,
                                          GLuint& jointsSize,
                                          gl::Buffer& staticBuffer) {
+
+    auto heightmapResult = Heightmap::fromFile(TEXTUREDIR "terrain/height.png",
+                                               TEXTUREDIR "terrain/diffuse.png",
+                                               TEXTUREDIR "terrain/normal.png");
+    if (!heightmapResult) {
+      return fmt::format("Failed to load heightmap: {}",
+                         heightmapResult.error());
+    }
+    graph.AddChild(
+        std::make_shared<Heightmap>(std::move(heightmapResult.value())));
+
     auto gooberMeshDataOpt = engine::mesh::Data::fromFile(MESHDIR "Role_T.msh");
     if (!gooberMeshDataOpt) {
       return gooberMeshDataOpt.error();
@@ -37,7 +127,27 @@ namespace {
     auto& gooberMeshData = gooberMeshDataOpt.value();
     engine::mesh::Animation gooberAnimation(MESHDIR "Role_T.anm");
 
-    engine::mesh::Mesh gooberMesh(gooberMeshData);
+    engine::mesh::Material gooberMat(MESHDIR "Role_T.mat");
+
+    std::vector<engine::mesh::TextureSet> gooberTexs;
+
+    {
+      for (size_t i = 0; i < gooberMeshData.meshLayers().size(); i++) {
+        auto matEntry = gooberMat.GetMaterialForLayer(static_cast<int>(i));
+        if (!matEntry) {
+          continue;
+        }
+
+        auto texSetRes =
+            createTextureSet(*matEntry, fmt::format("Goober {}", i));
+        if (!texSetRes) {
+          return texSetRes.error();
+        }
+        gooberTexs.push_back(std::move(texSetRes.value()));
+      }
+    }
+
+    engine::mesh::Mesh gooberMesh(gooberMeshData, std::move(gooberTexs));
 
     struct MeshWithData {
       engine::mesh::Mesh& mesh;
@@ -112,19 +222,20 @@ namespace {
     }
 
     staticBuffer.init(bufferSize);
+    staticBuffer.label("Static Mesh Buffer");
     stagingBuffer.copyTo(staticBuffer, 0, 0, bufferSize);
 
     struct GooberSetup {
       glm::vec3 position;
-      float frame;
+      uint32_t frame;
     };
 
-    std::array<GooberSetup, 5> gooberSetups = {{
-        {{9.5f, 268.75f, 0.0f}, 0.0f},
-        {{25.f, 268.75f, 0.0f}, 5.0f},
-        {{40.f, 268.75f, 0.0f}, 10.0f},
-        {{55.f, 268.75f, 0.0f}, 15.0f},
-        {{70.f, 268.75f, 0.0f}, 20.0f},
+    constexpr std::array<GooberSetup, 5> gooberSetups = {{
+        {{9.5f, 268.75f, 0.0f}, 0},
+        {{25.f, 268.75f, 0.0f}, 5},
+        {{40.f, 268.75f, 0.0f}, 10},
+        {{55.f, 268.75f, 0.0f}, 15},
+        {{70.f, 268.75f, 0.0f}, 20},
     }};
 
     auto gooberMeshPtr =
@@ -141,13 +252,17 @@ namespace {
     }
 
     vao.attribFormat(0, 3, GL_FLOAT, GL_FALSE,
-                     offsetof(engine::mesh::Vertex, position));
+                     offsetof(engine::mesh::Vertex, position), 0);
     vao.attribFormat(1, 2, GL_FLOAT, GL_FALSE,
-                     offsetof(engine::mesh::Vertex, texCoord));
+                     offsetof(engine::mesh::Vertex, texCoord), 0);
     vao.attribFormat(2, 3, GL_FLOAT, GL_FALSE,
-                     offsetof(engine::mesh::Vertex, normal));
+                     offsetof(engine::mesh::Vertex, normal), 0);
     vao.attribFormat(3, 4, GL_FLOAT, GL_FALSE,
-                     offsetof(engine::mesh::Vertex, tangent));
+                     offsetof(engine::mesh::Vertex, tangent), 0);
+    vao.attribFormat(4, 4, GL_FLOAT, GL_FALSE, 0, 1);
+    vao.attribFormat(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), 1);
+    vao.attribFormat(6, 4, GL_FLOAT, GL_FALSE, 2 * sizeof(glm::vec4), 1);
+    vao.attribFormat(7, 4, GL_FLOAT, GL_FALSE, 3 * sizeof(glm::vec4), 1);
     vao.bufferDivisor(1, 1);
 
     return std::nullopt;
@@ -227,6 +342,16 @@ namespace {
 
     return cubeMap;
   }
+
+  GLuint writeLitDraws(const engine::scene::Graph::NodeLists& nodeLists,
+                       gl::MappingRef& mapping) {
+    GLuint writtenDraws = 0;
+    for (const auto& child : nodeLists.lit) {
+      child.node->writeBatchedDraws(mapping, writtenDraws);
+    }
+
+    return writtenDraws;
+  }
 } // namespace
 
 template <>
@@ -270,17 +395,6 @@ Renderer::Renderer(int width, int height, const char title[])
 
   camera.onResize(width, height);
 
-  auto heightmapResult = Heightmap::fromFile(TEXTUREDIR "terrain/height.png",
-                                             TEXTUREDIR "terrain/diffuse.png",
-                                             TEXTUREDIR "terrain/normal.png");
-  if (!heightmapResult) {
-    Logger::error("Failed to load heightmap: {}", heightmapResult.error());
-    bail();
-    return;
-  }
-  graph.AddChild(
-      std::make_shared<Heightmap>(std::move(heightmapResult.value())));
-
   camera.SetPosition({0.f, 300.f, 0.0f});
 
   auto cubeMapResult = getEnvMap();
@@ -317,8 +431,18 @@ Renderer::Renderer(int width, int height, const char title[])
     bail();
     return;
   }
-  batchVao.bindVertexBuffer(0, skinnedVerticesBuffer.id(), 0,
-                            sizeof(engine::mesh::Vertex));
+  batchVao.bindIndexBuffer(staticBuffer.id());
+  batchVao.label("Batch Vao");
+
+  auto skinProgramOpt = gl::Program::fromFiles(
+      {{SHADERDIR "compute/skin.comp.glsl", gl::Shader::Type::COMPUTE}});
+  if (!skinProgramOpt) {
+    Logger::error("Failed to create skinning program: {}",
+                  skinProgramOpt.error());
+    bail();
+    return;
+  }
+  skinProgram = std::move(*skinProgramOpt);
 
   auto batchProgramOpt = gl::Program::fromFiles(
       {{SHADERDIR "batch.vert.glsl", gl::Shader::Type::VERTEX},
@@ -330,6 +454,27 @@ Renderer::Renderer(int width, int height, const char title[])
     return;
   }
   batchProgram = std::move(*batchProgramOpt);
+
+  auto batchShadowProgramOpt = gl::Program::fromFiles(
+      {{SHADERDIR "batch_shadow.vert.glsl", gl::Shader::Type::VERTEX},
+       {SHADERDIR "lighting/shadow.geom.glsl", gl::Shader::Type::GEOMETRY},
+       {SHADERDIR "lighting/depth_to_linear.frag.glsl",
+        gl::Shader::Type::FRAGMENT}});
+  if (!batchShadowProgramOpt) {
+    Logger::error("Failed to create batch shadow program: {}",
+                  batchShadowProgramOpt.error());
+    bail();
+    return;
+  }
+  batchShadowProgram = std::move(*batchShadowProgramOpt);
+
+  shadowMatrixBuffer.init(sizeof(LightUniform), nullptr,
+                          gl::Buffer::Usage::WRITE |
+                              gl::Buffer::Usage::PERSISTENT |
+                              gl::Buffer::Usage::COHERENT);
+  shadowMatrixMapping = shadowMatrixBuffer.map(gl::Buffer::Mapping::WRITE |
+                                               gl::Buffer::Mapping::PERSISTENT |
+                                               gl::Buffer::Mapping::COHERENT);
 
   auto pointLightOpt = gl::Program::fromFiles(
       {{SHADERDIR "lighting/point_light.vert.glsl", gl::Shader::Type::VERTEX},
@@ -430,114 +575,19 @@ void Renderer::update(const engine::FrameInfo& info) {
 void Renderer::render(const engine::FrameInfo& info) {
   (void)info;
   gbuffers->fbo.bind();
+  glViewport(0, 0, windowSize.width, windowSize.height);
+  glScissor(0, 0, windowSize.width, windowSize.height);
   glClearDepth(0.0f);
   glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  auto nodeLists = graph.BuildNodeLists(camera);
+  auto nodeLists =
+      graph.BuildNodeLists(camera.GetFrustum(), camera.GetPosition());
 
-  engine::scene::Node::DrawParams drawParams = {0, 0, 0};
-  for (const auto& node : nodeLists.lit) {
-    drawParams += node.node->getBatchDrawParams();
-  }
+  debugUi(info, nodeLists);
 
-  GLuint verticesSize = drawParams.maxVertices * sizeof(engine::mesh::Vertex);
-  if (verticesSize > skinnedVerticesBuffer.size()) {
-    skinnedVerticesBuffer = {};
-    skinnedVerticesBuffer.init(verticesSize);
-  }
-
-  staticBuffer.bindRange(gl::Buffer::StorageTarget::STORAGE, 1, 0,
-                         staticVertexSize);
-  skinnedVerticesBuffer.bindRange(gl::Buffer::StorageTarget::STORAGE, 2, 0,
-                                  verticesSize);
-  staticBuffer.bindRange(gl::Buffer::StorageTarget::STORAGE, 3, jointOffset,
-                         jointSize);
-  {
-    GLuint writtenVertices = 0;
-    for (const auto& node : nodeLists.lit) {
-      node.node->skinVertices(writtenVertices);
-    }
-  }
-
-  auto indirectSize = static_cast<GLuint>(
-      drawParams.maxIndirectCmds * sizeof(gl::DrawElementsIndirectCommand));
-  auto instanceSize =
-      static_cast<GLuint>(drawParams.instances * sizeof(glm::mat4));
-
-  auto dynamicSize = indirectSize + instanceSize;
-  if (dynamicBuffer.size() < dynamicSize) {
-    dynamicBuffer = {};
-    dynamicBuffer.init(dynamicSize, nullptr,
-                       gl::Buffer::Usage::WRITE |
-                           gl::Buffer::Usage::PERSISTENT |
-                           gl::Buffer::Usage::COHERENT);
-    dynamicMapping = dynamicBuffer.map(gl::Buffer::Mapping::WRITE |
-                                       gl::Buffer::Mapping::PERSISTENT |
-                                       gl::Buffer::Mapping::COHERENT);
-    batchVao.bindVertexBuffer(1, dynamicBuffer.id(), indirectSize,
-                              sizeof(glm::mat4));
-  }
-
-  GLuint writtenDraws = 0;
-  {
-    gl::MappingRef indirectMap = {dynamicMapping, 0};
-    gl::MappingRef instanceMap = {dynamicMapping,
-                                  static_cast<GLuint>(indirectSize)};
-    for (auto& node : nodeLists.lit) {
-      node.node->writeInstanceData(instanceMap);
-      node.node->writeBatchedDraws(indirectMap, writtenDraws);
-    }
-  }
-
-  {
-    auto bg = batchVao.bindGuard();
-    batchProgram.bind();
-    dynamicBuffer.bind(gl::Buffer::BasicTarget::DRAW_INDIRECT);
-
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_GREATER);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-
-    glDisable(GL_BLEND);
-
-    glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr,
-                                writtenDraws, 0);
-  }
-
-  {
-    engine::gui::GuiWindow cameraFrame("Camera");
-    camera.CameraDebugUI();
-    ImGui::Text("L: %d | O: %d | T: %d", nodeLists.lit.size(),
-                nodeLists.opaque.size(), nodeLists.transparent.size());
-    ImGui::SeparatorText("Debug Views");
-    if (ImGui::BeginCombo("View", fmt::format("{}", debugView).c_str())) {
-#define SEL(NAME, ENUM)                                                        \
-  if (ImGui::Selectable(NAME, debugView == DebugView::ENUM)) {                 \
-    debugView = DebugView::ENUM;                                               \
-  }
-      SEL("None", NONE);
-      SEL("Diffuse", DIFFUSE);
-      SEL("Normal", NORMAL);
-      SEL("Material", MATERIAL);
-      SEL("Depth", DEPTH);
-      SEL("Diffuse Light", DIFFUSE_LIGHT);
-      SEL("Specular Light", SPECULAR_LIGHT);
-#undef SEL
-
-      ImGui::EndCombo();
-    }
-
-    ImGui::SeparatorText("Post Processes");
-    for (auto& pp : postProcesses) {
-      bool enabled = pp->isEnabled();
-      if (ImGui::Checkbox(pp->name().data(), &enabled)) {
-        pp->setEnabled(enabled);
-      }
-    }
-  }
+  auto batch = setupBatches();
+  renderLit(nodeLists, batch);
 
   if (debugView == DebugView::DIFFUSE || debugView == DebugView::NORMAL ||
       debugView == DebugView::MATERIAL || debugView == DebugView::DEPTH) {
@@ -579,7 +629,183 @@ void Renderer::render(const engine::FrameInfo& info) {
   renderPostProcesses();
 }
 
+Renderer::BatchSetup Renderer::setupBatches() {
+  auto& roots = graph.GetRoots();
+
+  engine::scene::Node::DrawParams drawParams = {0, 0, 0};
+  for (const auto& node : roots) {
+    drawParams += node->getBatchDrawParams();
+  }
+
+  GLuint verticesSize = drawParams.maxVertices * sizeof(engine::mesh::Vertex);
+  if (verticesSize > skinnedVerticesBuffer.size()) {
+    skinnedVerticesBuffer = {};
+    skinnedVerticesBuffer.label("Skinned Vertices Buffer");
+    skinnedVerticesBuffer.init(verticesSize);
+    batchVao.bindVertexBuffer(0, skinnedVerticesBuffer.id(), 0,
+                              sizeof(engine::mesh::Vertex));
+  }
+
+  skinProgram.bind();
+
+  staticBuffer.bindRange(gl::Buffer::StorageTarget::STORAGE, 1, 0,
+                         staticVertexSize);
+  skinnedVerticesBuffer.bindRange(gl::Buffer::StorageTarget::STORAGE, 2, 0,
+                                  verticesSize);
+  staticBuffer.bindRange(gl::Buffer::StorageTarget::STORAGE, 3, jointOffset,
+                         jointSize);
+  {
+    GLuint writtenVertices = 0;
+    for (const auto& node : roots) {
+      node->skinVertices(writtenVertices);
+    }
+  }
+
+  auto indirectSize = static_cast<GLuint>(
+      drawParams.maxIndirectCmds * sizeof(gl::DrawElementsIndirectCommand));
+  auto instanceSize =
+      static_cast<GLuint>(drawParams.instances * sizeof(glm::mat4));
+  auto textureSize = static_cast<GLuint>(
+      drawParams.maxIndirectCmds * sizeof(engine::mesh::TextureHandleSet));
+  auto textureOffset = gl::Buffer::roundToAlignment(
+      indirectSize + instanceSize, gl::UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+
+  auto dynamicSize = textureOffset + textureSize;
+  if (dynamicBuffer.size() < dynamicSize) {
+    Logger::debug("Resizing dynamic buffer from {} to {}. Instance Offset: {} "
+                  "| Texture Offset: {}",
+                  dynamicBuffer.size(), dynamicSize, indirectSize,
+                  textureOffset);
+    dynamicBuffer = {};
+    dynamicBuffer.label("Dynamic Buffer");
+    dynamicBuffer.init(dynamicSize, nullptr,
+                       gl::Buffer::Usage::WRITE |
+                           gl::Buffer::Usage::PERSISTENT |
+                           gl::Buffer::Usage::COHERENT);
+    dynamicMapping = dynamicBuffer.map(gl::Buffer::Mapping::WRITE |
+                                       gl::Buffer::Mapping::PERSISTENT |
+                                       gl::Buffer::Mapping::COHERENT);
+    batchVao.bindVertexBuffer(1, dynamicBuffer.id(), indirectSize,
+                              sizeof(glm::mat4));
+  }
+
+  GLuint writtenInstances = 0;
+  gl::MappingRef indirectMap = {dynamicMapping, 0};
+  gl::MappingRef instanceMap = {dynamicMapping,
+                                static_cast<GLuint>(indirectSize)};
+  gl::MappingRef textureMap = {dynamicMapping,
+                               static_cast<GLuint>(textureOffset)};
+  for (auto& node : roots) {
+    node->writeInstanceData(instanceMap, writtenInstances, textureMap);
+  }
+
+  return {
+      .textureOffset = textureOffset,
+      .textureSize = textureSize,
+  };
+}
+
+void Renderer::renderLit(const engine::scene::Graph::NodeLists& nodeLists,
+                         const BatchSetup& batch) {
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_GREATER);
+  glClear(GL_DEPTH_BUFFER_BIT);
+
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+
+  glDisable(GL_BLEND);
+
+  camera.bindMatrixBuffer(0);
+
+  // Will likely be the larger more custom stuff like terrain
+  nodeLists.renderLit(camera.GetFrustum());
+
+  auto bg = batchVao.bindGuard();
+  batchProgram.bind();
+  gl::MappingRef indirectMap = {dynamicMapping, 0};
+  auto draws = writeLitDraws(nodeLists, indirectMap);
+  dynamicBuffer.bind(gl::Buffer::BasicTarget::DRAW_INDIRECT);
+
+  dynamicBuffer.bindRange(gl::Buffer::StorageTarget::STORAGE, 2,
+                          batch.textureOffset, batch.textureSize);
+
+  glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr, draws,
+                              sizeof(gl::DrawElementsIndirectCommand));
+}
+void Renderer::debugUi(const engine::FrameInfo& frame,
+                       const engine::scene::Graph::NodeLists& nodeLists) {
+  (void)frame;
+
+  engine::gui::GuiWindow cameraFrame("Camera");
+  camera.CameraDebugUI();
+  ImGui::Text("L: %d | O: %d | T: %d", nodeLists.lit.size(),
+              nodeLists.opaque.size(), nodeLists.transparent.size());
+  ImGui::SeparatorText("Debug Views");
+  if (ImGui::BeginCombo("View", fmt::format("{}", debugView).c_str())) {
+#define SEL(NAME, ENUM)                                                        \
+  if (ImGui::Selectable(NAME, debugView == DebugView::ENUM)) {                 \
+    debugView = DebugView::ENUM;                                               \
+  }
+    SEL("None", NONE);
+    SEL("Diffuse", DIFFUSE);
+    SEL("Normal", NORMAL);
+    SEL("Material", MATERIAL);
+    SEL("Depth", DEPTH);
+    SEL("Diffuse Light", DIFFUSE_LIGHT);
+    SEL("Specular Light", SPECULAR_LIGHT);
+#undef SEL
+
+    ImGui::EndCombo();
+  }
+
+  ImGui::SeparatorText("Post Processes");
+  for (auto& pp : postProcesses) {
+    bool enabled = pp->isEnabled();
+    if (ImGui::Checkbox(pp->name().data(), &enabled)) {
+      pp->setEnabled(enabled);
+    }
+  }
+}
+
 bool Renderer::renderPointLights() {
+  {
+    glViewport(0, 0, PointLight::SHADOW_MAP_SIZE, PointLight::SHADOW_MAP_SIZE);
+    glScissor(0, 0, PointLight::SHADOW_MAP_SIZE, PointLight::SHADOW_MAP_SIZE);
+    auto bg = batchVao.bindGuard();
+
+    GLuint writtenDraws = 0;
+    gl::MappingRef indirectMap = {dynamicMapping, 0};
+    for (const auto& root : graph.GetRoots()) {
+      root->writeBatchedDraws(indirectMap, writtenDraws);
+    }
+
+    dynamicBuffer.bind(gl::Buffer::BasicTarget::DRAW_INDIRECT);
+    shadowMatrixBuffer.bindBase(gl::Buffer::StorageTarget::UNIFORM, 5);
+
+    auto renderFn = [&]() {
+      for (const auto& root : graph.GetRoots()) {
+        root->renderDepthOnly();
+      }
+
+      batchVao.bind();
+      batchShadowProgram.bind();
+
+      glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr,
+                                  writtenDraws,
+                                  sizeof(gl::DrawElementsIndirectCommand));
+    };
+
+    for (const auto& light : pointLights) {
+      light.renderShadowMap(renderFn, shadowMatrixMapping);
+    }
+
+    gl::Vao::unbind();
+  }
+  camera.bindMatrixBuffer(0);
+  glViewport(0, 0, windowSize.width, windowSize.height);
+  glScissor(0, 0, windowSize.width, windowSize.height);
+
   pointLight.bind();
 
   auto bg = engine::globals::DUMMY_VAO.bindGuard();
@@ -604,6 +830,7 @@ bool Renderer::renderPointLights() {
     glUniform3fv(0, 1, &pointLights[i].position()[0]);
     glUniform1fv(1, 1, &pointLights[i].radius());
     glUniform4fv(2, 1, &pointLights[i].color()[0]);
+    pointLights[i].getShadowMap().bind(4);
     glDrawArrays(GL_TRIANGLES, 0, 36);
   }
 

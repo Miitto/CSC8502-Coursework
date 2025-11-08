@@ -31,9 +31,8 @@ layout(location = 2) out vec4 materialOut;
 void main() {
   TextureSet tex = TEXTURES.textures[IN.drawID];
 
-
   // Diffuse MUST be valid (i hope)
-  vec4 diffuse = texture(sampler2D(tex.diffuse), IN.uv);
+  diffuseOut = texture(sampler2D(tex.diffuse), IN.uv);
 
   vec3 normal = IN.normal;
   if (isTextureValid(tex.bump)) {
@@ -49,6 +48,5 @@ void main() {
     materialOut = texture(sampler2D(tex.material), IN.uv);
   }
 
-  diffuseOut = diffuse;
   normalOut = vec4(normal * 0.5 + 0.5, 1.0);
 }
