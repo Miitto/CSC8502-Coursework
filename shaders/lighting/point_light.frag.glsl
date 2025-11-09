@@ -16,6 +16,8 @@ layout(binding = 2) uniform sampler2D materialTex;
 layout(binding = 3) uniform sampler2D depthTex;
 layout(binding = 4) uniform samplerCube shadowMap;
 
+layout(location = 3) uniform uint fullbright = 0;
+
 in Vertex {
   vec3 lightPos;
   float lightRadius;
@@ -27,7 +29,15 @@ layout(location = 1) out vec4 specularOut;
 
 float calculateOcclusion(vec3 fragPos) {
   vec3 worldToLight = fragPos - IN.lightPos;
-  float depth = 1.0 - texture(shadowMap, worldToLight).r;
+  float depthCenter = 1.0 - texture(shadowMap, worldToLight).r;
+
+  float offset = 1.0f / 2048.0f; // assuming 2048x2048 shadow map resolution
+
+  float depthRight = 1.0 - texture(shadowMap, worldToLight + vec3(offset, 0.0, 0.0)).r;
+  float depthLeft = 1.0 - texture(shadowMap, worldToLight + vec3(-offset, 0.0, 0.0)).r;
+  float depthUp = 1.0 - texture(shadowMap, worldToLight + vec3(0.0, offset, 0.0)).r;
+  float depthDown = 1.0 - texture(shadowMap, worldToLight + vec3(0.0, -offset, 0.0)).r;
+  float depth = (depthCenter + depthRight + depthLeft + depthUp + depthDown) / 5.0;
 
   depth *= IN.lightRadius;
 
@@ -39,6 +49,12 @@ float calculateOcclusion(vec3 fragPos) {
 }
 
 void main() {
+  if (fullbright != 0) {
+    diffuseOut = IN.lightColor;
+    specularOut = vec4(0.0);
+    return;
+  }
+
   vec2 uv = gl_FragCoord.xy / CAM.resolution;
 
   float depth = texture(depthTex, uv).r;
@@ -75,6 +91,8 @@ void main() {
 
   float shadowOcclusion = calculateOcclusion(world);
 
-  diffuseOut = vec4(max(attenuated * lambert, vec3(emissivity)), 1.0) * shadowOcclusion;
+  vec4 diffuse = vec4(max(attenuated * lambert, vec3(emissivity)), 1.0);
+
+  diffuseOut = diffuse * shadowOcclusion;
   specularOut = vec4(attenuated * specFactor, 1.0) * shadowOcclusion;
 }

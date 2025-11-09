@@ -11,7 +11,7 @@
 
 class PointLight {
 public:
-  constexpr static int32_t SHADOW_MAP_SIZE = 1024;
+  constexpr static int32_t SHADOW_MAP_SIZE = 2048;
 
   struct InstanceData {
     glm::vec3 position = glm::vec3(0.0);
@@ -48,6 +48,7 @@ public:
   void setupShadowMap() {
     shadowMap.storage(1, GL_DEPTH_COMPONENT24,
                       gl::Texture::Size{SHADOW_MAP_SIZE, SHADOW_MAP_SIZE});
+    shadowMap.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     shadowMapHandle = shadowMap.createHandle();
 
     shadowFbo.attachTexture(GL_DEPTH_ATTACHMENT, shadowMap.id(), 0);

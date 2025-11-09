@@ -33,6 +33,7 @@ private:
   bool renderPointLights();
   bool combineDeferredLightBuffers();
   void renderPostProcesses();
+  void renderLightGizmos();
 
   engine::PerspectiveCamera camera;
 

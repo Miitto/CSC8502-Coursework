@@ -500,10 +500,10 @@ Renderer::Renderer(int width, int height, const char title[])
   }
   deferredLightCombine = std::move(*deferredLightCombineOpt);
 
-  pointLights.emplace_back(glm::vec3(0, 300, 0), glm::vec4(0.8, 0.8, 0.8, 2.0),
-                           500.f);
+  /*pointLights.emplace_back(glm::vec3(0, 300, 0), glm::vec4(0.8, 0.8,
+     0.8, 2.0), 500.f);*/
   pointLights.emplace_back(glm::vec3(100, 300, 100),
-                           glm::vec4(0.8, 0.2, 0.2, 2.0), 300.f);
+                           glm::vec4(0.8, 0.2, 0.2, 20.0), 300.f);
 
   auto instanceSize =
       static_cast<GLuint>(pointLights.size()) * PointLight::dataSize();
@@ -627,6 +627,7 @@ void Renderer::render(const engine::FrameInfo& info) {
   if (!combineDeferredLightBuffers())
     return;
   renderPostProcesses();
+  renderLightGizmos();
 }
 
 Renderer::BatchSetup Renderer::setupBatches() {
@@ -783,6 +784,8 @@ bool Renderer::renderPointLights() {
     dynamicBuffer.bind(gl::Buffer::BasicTarget::DRAW_INDIRECT);
     shadowMatrixBuffer.bindBase(gl::Buffer::StorageTarget::UNIFORM, 5);
 
+    glCullFace(GL_FRONT);
+
     auto renderFn = [&]() {
       for (const auto& root : graph.GetRoots()) {
         root->renderDepthOnly();
@@ -805,6 +808,7 @@ bool Renderer::renderPointLights() {
   camera.bindMatrixBuffer(0);
   glViewport(0, 0, windowSize.width, windowSize.height);
   glScissor(0, 0, windowSize.width, windowSize.height);
+  glCullFace(GL_BACK);
 
   pointLight.bind();
 
@@ -826,9 +830,11 @@ bool Renderer::renderPointLights() {
   glEnable(GL_BLEND);
   glBlendFunc(GL_ONE, GL_ONE);
 
+  glUniform1ui(3, 0);
+
   for (size_t i = 0; i < pointLights.size(); ++i) {
     glUniform3fv(0, 1, &pointLights[i].position()[0]);
-    glUniform1fv(1, 1, &pointLights[i].radius());
+    glUniform1f(1, pointLights[i].radius());
     glUniform4fv(2, 1, &pointLights[i].color()[0]);
     pointLights[i].getShadowMap().bind(4);
     glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -916,6 +922,20 @@ void Renderer::renderPostProcesses() {
       windowSize.height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 }
 
+void Renderer::renderLightGizmos() {
+  auto bg = engine::globals::DUMMY_VAO.bindGuard();
+  pointLight.bind();
+  glUniform1ui(3, 1);
+  for (size_t i = 0; i < pointLights.size(); ++i) {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glUniform3fv(0, 1, &pointLights[i].position()[0]);
+    glUniform1f(1, pointLights[i].radius());
+    glUniform4fv(2, 1, &pointLights[i].color()[0]);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+  }
+  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
 void Renderer::setupPostProcesses(int width, int height) {
   for (auto& pp : postProcessFlipFlops) {
     pp.tex = {};
@@ -927,9 +947,9 @@ void Renderer::setupPostProcesses(int width, int height) {
 
 void Renderer::setupLightFbo(int width, int height) {
   lightFbo.diffuse = {};
-  lightFbo.diffuse.storage(1, GL_RGBA8, {width, height});
+  lightFbo.diffuse.storage(1, GL_RGBA32F, {width, height});
   lightFbo.specular = {};
-  lightFbo.specular.storage(1, GL_RGBA8, {width, height});
+  lightFbo.specular.storage(1, GL_RGBA32F, {width, height});
   lightFbo.fbo = {};
   lightFbo.fbo.attachTexture(GL_COLOR_ATTACHMENT0, lightFbo.diffuse);
   lightFbo.fbo.attachTexture(GL_COLOR_ATTACHMENT1, lightFbo.specular);
