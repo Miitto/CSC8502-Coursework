@@ -34,7 +34,7 @@ void main() {
   float d1 = mix(IN[2].dist, IN[3].dist, inUv.x);
   float dist = mix(d0, d1, inUv.y);
 
-  float height = texture(heightmap, uv).r * 500.0;
+  float height = texture(heightmap, uv).r * 1245;
 
   vec4 p00 = gl_in[0].gl_Position;
   vec4 p01 = gl_in[1].gl_Position;
