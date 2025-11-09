@@ -1,25 +1,19 @@
 #pragma once
 
 #include "light.hpp"
-#include <array>
-#include <engine/camera.hpp>
-#include <engine/frustum.hpp>
-#include <gl/gl.hpp>
-#include <glm/glm.hpp>
-#include <glm\ext\matrix_clip_space.hpp>
-#include <glm\ext\matrix_transform.hpp>
 
-class PointLight {
+class DirectionalLight {
 public:
   constexpr static int32_t SHADOW_MAP_SIZE = 2048;
 
   struct InstanceData {
-    glm::vec3 position = glm::vec3(0.0);
-    float radius = 1.0;
     glm::vec4 color = glm::vec4(1.0);
+    glm::vec3 direction = glm::vec3(0.0, -1.0, 0.0);
+    float padding = 0.0f;
   };
 
-  PointLight(const glm::vec3& position, const glm::vec4& color, float radius)
+  DirectionalLight(const glm::vec3& position, const glm::vec4& color,
+                   float radius)
       : m({position, radius, color}) {
     setupShadowMap();
   }
