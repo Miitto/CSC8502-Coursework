@@ -24,9 +24,17 @@ layout(location = 2) out vec4 materialOut;
 
 void main() {
   vec3 diffuse = texture(diffuseMap, IN.uv).rgb;
-  vec3 normal = texture(waterBump, IN.uv).rgb * 2.0 - 1.0;
+  vec3 bump = texture(waterBump, IN.uv).rgb * 2.0 - 1.0;
+
+  vec3 tangent = vec3(1.0, 0.0, 0.0);
+  vec3 binormal = vec3(0.0, 0.0, 1.0);
+  vec3 normal = vec3(0.0, 1.0, 0.0);
+
+  mat3 TBN = mat3(normalize(tangent), normalize(binormal), normalize(normal));
+
+  vec3 bumpedNormal = normalize(TBN * normalize(bump));
 
   diffuseOut = vec4(diffuse, 1.0);
-  normalOut = vec4(normalize(normal), 1.0);
+  normalOut = vec4(normalize(bumpedNormal), 1.0);
   materialOut = vec4(0.0, 0.0, 0.5, 0.8);
 }
