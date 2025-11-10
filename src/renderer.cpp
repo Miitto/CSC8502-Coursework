@@ -18,7 +18,6 @@ namespace {
     DIFFUSE,
     NORMAL,
     MATERIAL,
-    DEPTH,
     DIFFUSE_LIGHT,
     SPECULAR_LIGHT
   };
@@ -371,9 +370,6 @@ struct fmt::formatter<DebugView> : fmt::formatter<std::string_view> {
     case DebugView::MATERIAL:
       name = "Material";
       break;
-    case DebugView::DEPTH:
-      name = "Depth";
-      break;
     case DebugView::DIFFUSE_LIGHT:
       name = "Diffuse Light";
       break;
@@ -388,13 +384,20 @@ struct fmt::formatter<DebugView> : fmt::formatter<std::string_view> {
 
 Renderer::Renderer(int width, int height, const char title[])
     : engine::App(width, height, title),
-      camera(0.1f, 10000.0f,
-             static_cast<float>(width) / static_cast<float>(height),
-             glm::radians(90.0f)) {
+      camera(engine::PerspectiveCamera(0.1f, 10000.0f,
+                                       static_cast<float>(width) /
+                                           static_cast<float>(height),
+                                       glm::radians(90.0f)),
+             engine::PerspectiveCamera(0.1f, 10000.0f,
+                                       static_cast<float>(width) /
+                                           static_cast<float>(height),
+                                       glm::radians(90.f)),
+             {width, height}) {
 
+  camera.setSplitRatio(0.0f);
   camera.onResize(width, height);
 
-  camera.SetPosition({0.f, 300.f, 0.0f});
+  camera.left().SetPosition({0.f, 300.f, 0.0f});
 
   auto cubeMapResult = getEnvMap();
   if (!cubeMapResult) {
@@ -585,6 +588,7 @@ Renderer::Renderer(int width, int height, const char title[])
 void Renderer::onWindowResize(engine::Window::Size newSize) {
   App::onWindowResize(newSize);
   camera.onResize(newSize.width, newSize.height);
+  setupHdrOutput(newSize.width, newSize.height);
   setupPostProcesses(newSize.width, newSize.height);
   setupLightFbo(newSize.width, newSize.height);
 }
@@ -593,28 +597,45 @@ void Renderer::update(const engine::FrameInfo& info) {
   engine::App::update(info);
   camera.update(input, info.frameDelta);
 
+  if (input.isKeyPressed(GLFW_KEY_B)) {
+    enableBloom = !enableBloom;
+  }
+
   graph.update(info);
 }
 
 void Renderer::render(const engine::FrameInfo& info) {
   (void)info;
   gbuffers->fbo.bind();
-  glViewport(0, 0, windowSize.width, windowSize.height);
-  glScissor(0, 0, windowSize.width, windowSize.height);
   glClearDepth(0.0f);
   glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  auto nodeLists =
-      graph.BuildNodeLists(camera.GetFrustum(), camera.GetPosition());
-
-  debugUi(info, nodeLists);
-
   auto batch = setupBatches();
-  renderLit(nodeLists, batch);
 
+  if (camera.getSplitRatio() < 1.0f) {
+    camera.leftView();
+    auto& camera = this->camera.left();
+    auto nodeLists =
+        graph.BuildNodeLists(camera.GetFrustum(), camera.GetPosition());
+
+    renderLit(nodeLists, batch, camera);
+  }
+
+  if (camera.getSplitRatio() > 0.0f) {
+    camera.rightView();
+    auto& camera = this->camera.right();
+    auto nodeLists =
+        graph.BuildNodeLists(camera.GetFrustum(), camera.GetPosition());
+    renderLit(nodeLists, batch, camera);
+  }
+
+  glViewport(0, 0, windowSize.width, windowSize.height);
+  glScissor(0, 0, windowSize.width, windowSize.height);
+
+  debugUi(info);
   if (debugView == DebugView::DIFFUSE || debugView == DebugView::NORMAL ||
-      debugView == DebugView::MATERIAL || debugView == DebugView::DEPTH) {
+      debugView == DebugView::MATERIAL) {
     gl::Framebuffer::unbind();
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
@@ -628,15 +649,6 @@ void Renderer::render(const engine::FrameInfo& info) {
     case DebugView::MATERIAL:
       gbuffers->material.bind(0);
       break;
-    case DebugView::DEPTH: {
-      auto bg = engine::globals::DUMMY_VAO.bindGuard();
-      depthView.bind();
-      glUniform1f(1, camera.getNear());
-      glUniform1f(0, camera.getFar());
-      gbuffers->depthStencil.bind(0);
-      glDrawArrays(GL_TRIANGLES, 0, 3);
-      return;
-    }
     default:
       break;
     }
@@ -753,7 +765,8 @@ Renderer::BatchSetup Renderer::setupBatches() {
 }
 
 void Renderer::renderLit(const engine::scene::Graph::NodeLists& nodeLists,
-                         const BatchSetup& batch) {
+                         const BatchSetup& batch,
+                         const engine::Camera& camera) {
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_GREATER);
   glClear(GL_DEPTH_BUFFER_BIT);
@@ -780,14 +793,13 @@ void Renderer::renderLit(const engine::scene::Graph::NodeLists& nodeLists,
   glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr, draws,
                               sizeof(gl::DrawElementsIndirectCommand));
 }
-void Renderer::debugUi(const engine::FrameInfo& frame,
-                       const engine::scene::Graph::NodeLists& nodeLists) {
+void Renderer::debugUi(const engine::FrameInfo& frame) {
   (void)frame;
 
   engine::gui::GuiWindow cameraFrame("Camera");
-  camera.CameraDebugUI();
-  ImGui::Text("L: %d | O: %d | T: %d", nodeLists.lit.size(),
-              nodeLists.opaque.size(), nodeLists.transparent.size());
+  ImGui::Text("Split Ratio: %.2f", camera.getSplitRatio());
+  camera.left().CameraDebugUI();
+  camera.right().CameraDebugUI();
   ImGui::SeparatorText("Debug Views");
   if (ImGui::BeginCombo("View", fmt::format("{}", debugView).c_str())) {
 #define SEL(NAME, ENUM)                                                        \
@@ -798,7 +810,6 @@ void Renderer::debugUi(const engine::FrameInfo& frame,
     SEL("Diffuse", DIFFUSE);
     SEL("Normal", NORMAL);
     SEL("Material", MATERIAL);
-    SEL("Depth", DEPTH);
     SEL("Diffuse Light", DIFFUSE_LIGHT);
     SEL("Specular Light", SPECULAR_LIGHT);
 #undef SEL

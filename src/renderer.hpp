@@ -5,7 +5,7 @@
 #include "postprocess.hpp"
 #include <array>
 #include <engine/app.hpp>
-#include <engine/camera.hpp>
+#include <engine/split_camera.hpp>
 #include <gl/gl.hpp>
 #include <memory>
 
@@ -19,8 +19,7 @@ public:
   void onWindowResize(engine::Window::Size newSize) override;
 
 private:
-  void debugUi(const engine::FrameInfo& frame,
-               const engine::scene::Graph::NodeLists& nodeLists);
+  void debugUi(const engine::FrameInfo& frame);
 
   struct BatchSetup {
     uint32_t textureOffset;
@@ -30,13 +29,14 @@ private:
 
   BatchSetup setupBatches();
   void renderLit(const engine::scene::Graph::NodeLists& nodeLists,
-                 const BatchSetup& batch);
+                 const BatchSetup& batch, const engine::Camera& camera);
   void renderPointLights();
   bool combineDeferredLightBuffers();
   void renderPostProcesses();
   void renderLightGizmos();
 
-  engine::PerspectiveCamera camera;
+  engine::SplitCamera<engine::PerspectiveCamera, engine::PerspectiveCamera>
+      camera;
 
   engine::scene::Graph graph;
 

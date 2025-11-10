@@ -12,7 +12,7 @@ in Vertex {
     vec3 viewDir;
 } IN;
 
-void main() {             
+void main() {
   const float gamma = 2.2;
 
   vec3 hdrColor = texture(image, IN.uv).rgb + texture(bloom, IN.uv).rgb;
