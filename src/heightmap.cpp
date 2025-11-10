@@ -58,7 +58,6 @@ Heightmap::fromFile(std::string_view heightFile, std::string_view diffuseFile,
        {SHADERDIR "heightmap/tess_con.glsl", gl::Shader::Type::TESS_CONTROL},
        {SHADERDIR "heightmap/shadow.tess_eval.glsl",
         gl::Shader::Type::TESS_EVAL},
-       {SHADERDIR "lighting/shadow.geom.glsl", gl::Shader::Type::GEOMETRY},
        {SHADERDIR "lighting/depth_to_linear.frag.glsl",
         gl::Shader::Type::FRAGMENT}});
   if (!depthProgOpt) {
@@ -66,8 +65,22 @@ Heightmap::fromFile(std::string_view heightFile, std::string_view diffuseFile,
   }
   auto& depthProg = depthProgOpt.value();
 
+  auto deptCubeProgOpt = gl::Program::fromFiles(
+      {{SHADERDIR "heightmap/vert.glsl", gl::Shader::Type::VERTEX},
+       {SHADERDIR "heightmap/tess_con.glsl", gl::Shader::Type::TESS_CONTROL},
+       {SHADERDIR "heightmap/shadow_cube.tess_eval.glsl",
+        gl::Shader::Type::TESS_EVAL},
+       {SHADERDIR "lighting/omni_shadow.geom.glsl", gl::Shader::Type::GEOMETRY},
+       {SHADERDIR "lighting/depth_to_linear.frag.glsl",
+        gl::Shader::Type::FRAGMENT}});
+  if (!deptCubeProgOpt) {
+    return std::unexpected(deptCubeProgOpt.error());
+  }
+  auto& depthCubeProg = deptCubeProgOpt.value();
+
   return Heightmap(std::move(heightTex), std::move(diffuseTex),
-                   std::move(normalTex), std::move(prog), std::move(depthProg));
+                   std::move(normalTex), std::move(prog), std::move(depthProg),
+                   std::move(depthCubeProg));
 }
 
 void Heightmap::render(const engine::Frustum& frustum) {
@@ -87,12 +100,22 @@ void Heightmap::render(const engine::Frustum& frustum) {
   engine::scene::Node::render(frustum);
 }
 
-void Heightmap::renderDepthOnly() {
+void Heightmap::renderDepthOnly(const engine::Frustum& frustum) {
   depthProgram.bind();
   auto bg = engine::globals::DUMMY_VAO.bindGuard();
   heightTex.bind(0);
   constexpr int chunksPerAxis = 7;
   glPatchParameteri(GL_PATCH_VERTICES, 4);
   glDrawArrays(GL_PATCHES, 0, 4 * chunksPerAxis * chunksPerAxis);
-  engine::scene::Node::renderDepthOnly();
+  engine::scene::Node::renderDepthOnly(frustum);
+}
+
+void Heightmap::renderDepthOnlyCube() {
+  depthProgram.bind();
+  auto bg = engine::globals::DUMMY_VAO.bindGuard();
+  heightTex.bind(0);
+  constexpr int chunksPerAxis = 7;
+  glPatchParameteri(GL_PATCH_VERTICES, 4);
+  glDrawArrays(GL_PATCHES, 0, 4 * chunksPerAxis * chunksPerAxis);
+  engine::scene::Node::renderDepthOnlyCube();
 }

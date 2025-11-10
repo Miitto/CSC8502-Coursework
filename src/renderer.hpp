@@ -1,5 +1,6 @@
 #pragma once
 
+#include "blur.hpp"
 #include "pointLight.hpp"
 #include "postprocess.hpp"
 #include <array>
@@ -30,7 +31,7 @@ private:
   BatchSetup setupBatches();
   void renderLit(const engine::scene::Graph::NodeLists& nodeLists,
                  const BatchSetup& batch);
-  bool renderPointLights();
+  void renderPointLights();
   bool combineDeferredLightBuffers();
   void renderPostProcesses();
   void renderLightGizmos();
@@ -54,8 +55,14 @@ private:
   gl::Program batchProgram;
 
   gl::Program batchShadowProgram;
-  gl::Buffer shadowMatrixBuffer;
-  gl::Mapping shadowMatrixMapping;
+  gl::Program batchShadowCubeProgram;
+
+  struct MappedBuffer {
+    gl::Buffer buffer;
+    gl::Mapping mapping;
+  };
+
+  std::vector<MappedBuffer> shadowMatrixBuffers;
 
   gl::Program pointLight;
   gl::Program deferredLightCombine;
@@ -65,16 +72,17 @@ private:
     gl::Texture specular = {};
     gl::Framebuffer fbo = {};
   };
+
   LightFbo lightFbo = {};
-  gl::Vao pointLightVao;
   std::vector<PointLight> pointLights = {};
-  gl::Buffer pointLightBuffer = {};
-  gl::Mapping pointLightMapping = {};
 
   gl::CubeMap envMap = {};
 
   std::vector<std::unique_ptr<PostProcess>> postProcesses;
   PostProcess copyPP;
+  Blur blurPP;
+  PostProcess bloomPP;
+  bool enableBloom = false;
   gl::Program depthView;
 
   struct Fbos {
@@ -82,8 +90,12 @@ private:
     gl::Framebuffer fbo = {};
   };
 
+  Fbos hdrOutput = {};
+  gl::Texture bloomBrightTex = {};
+
   std::array<Fbos, 2> postProcessFlipFlops = {Fbos{}, Fbos{}};
 
+  void setupHdrOutput(int width, int height);
   void setupPostProcesses(int width, int height);
   void setupLightFbo(int width, int height);
 };

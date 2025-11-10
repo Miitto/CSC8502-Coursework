@@ -5,10 +5,11 @@ layout (quads, fractional_odd_spacing, cw) in;
 layout(binding = 0) uniform sampler2D heightmap;
 
 layout(std140, binding = 5) uniform LightUniforms {
-  mat4 shadowMatrix;
+  mat4 shadowMatrix[6];
   vec3 lightPos;
   float radius;
 } U;
+
 
 in Vertex {
   vec2 uv;
@@ -49,5 +50,5 @@ void main() {
   OUT.lightPos = U.lightPos;
   OUT.radius = U.radius;
 
-  gl_Position = U.shadowMatrix * pos;
+  gl_Position = pos;
 }

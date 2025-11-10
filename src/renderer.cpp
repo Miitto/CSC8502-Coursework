@@ -1,7 +1,6 @@
 #include "renderer.hpp"
 
 #include "heightmap.hpp"
-#include "light.hpp"
 #include "logger/logger.hpp"
 #include "skybox.hpp"
 #include "water.hpp"
@@ -413,6 +412,24 @@ Renderer::Renderer(int width, int height, const char title[])
   }
   copyPP = std::move(*copyPPOpt);
 
+  auto blurPPOpt = Blur::create();
+  if (!blurPPOpt) {
+    Logger::error("Failed to create blur post process: {}", blurPPOpt.error());
+    bail();
+    return;
+  }
+  blurPP = std::move(*blurPPOpt);
+
+  auto bloomPPOpt =
+      PostProcess::create("Bloom", SHADERDIR "postprocess/bloom.frag.glsl");
+  if (!bloomPPOpt) {
+    Logger::error("Failed to create bloom post process: {}",
+                  bloomPPOpt.error());
+    bail();
+    return;
+  }
+  bloomPP = std::move(*bloomPPOpt);
+
   auto depthViewOpt = gl::Program::fromFiles(
       {{SHADERDIR "fullscreen.vert.glsl", gl::Shader::VERTEX},
        {SHADERDIR "debug/depth.frag.glsl", gl::Shader::FRAGMENT}});
@@ -457,7 +474,6 @@ Renderer::Renderer(int width, int height, const char title[])
 
   auto batchShadowProgramOpt = gl::Program::fromFiles(
       {{SHADERDIR "batch_shadow.vert.glsl", gl::Shader::Type::VERTEX},
-       {SHADERDIR "lighting/shadow.geom.glsl", gl::Shader::Type::GEOMETRY},
        {SHADERDIR "lighting/depth_to_linear.frag.glsl",
         gl::Shader::Type::FRAGMENT}});
   if (!batchShadowProgramOpt) {
@@ -468,13 +484,18 @@ Renderer::Renderer(int width, int height, const char title[])
   }
   batchShadowProgram = std::move(*batchShadowProgramOpt);
 
-  shadowMatrixBuffer.init(sizeof(LightUniform), nullptr,
-                          gl::Buffer::Usage::WRITE |
-                              gl::Buffer::Usage::PERSISTENT |
-                              gl::Buffer::Usage::COHERENT);
-  shadowMatrixMapping = shadowMatrixBuffer.map(gl::Buffer::Mapping::WRITE |
-                                               gl::Buffer::Mapping::PERSISTENT |
-                                               gl::Buffer::Mapping::COHERENT);
+  auto batchShadowCubeProgramOpt = gl::Program::fromFiles(
+      {{SHADERDIR "batch_shadow_cube.vert.glsl", gl::Shader::Type::VERTEX},
+       {SHADERDIR "lighting/omni_shadow.geom.glsl", gl::Shader::Type::GEOMETRY},
+       {SHADERDIR "lighting/depth_to_linear.frag.glsl",
+        gl::Shader::Type::FRAGMENT}});
+  if (!batchShadowCubeProgramOpt) {
+    Logger::error("Failed to create batch shadow cube program: {}",
+                  batchShadowCubeProgramOpt.error());
+    bail();
+    return;
+  }
+  batchShadowCubeProgram = std::move(*batchShadowCubeProgramOpt);
 
   auto pointLightOpt = gl::Program::fromFiles(
       {{SHADERDIR "lighting/point_light.vert.glsl", gl::Shader::Type::VERTEX},
@@ -502,19 +523,21 @@ Renderer::Renderer(int width, int height, const char title[])
 
   /*pointLights.emplace_back(glm::vec3(0, 300, 0), glm::vec4(0.8, 0.8,
      0.8, 2.0), 500.f);*/
-  pointLights.emplace_back(glm::vec3(100, 300, 100),
-                           glm::vec4(0.8, 0.2, 0.2, 20.0), 300.f);
+  pointLights.emplace_back(glm::vec3(200, 300, -100),
+                           glm::vec4(0.2, 0.2, 0.8, 500.0), 100.f);
+  pointLights.emplace_back(glm::vec3(1000, 1000, 1000),
+                           glm::vec4(0.8, 0.8, 0.8, 10.0), 5000.f);
 
-  auto instanceSize =
-      static_cast<GLuint>(pointLights.size()) * PointLight::dataSize();
+  shadowMatrixBuffers.resize(pointLights.size());
+  for (auto& buf : shadowMatrixBuffers) {
 
-  pointLightBuffer.init(instanceSize, nullptr,
-                        gl::Buffer::Usage::DYNAMIC | gl::Buffer::Usage::WRITE |
-                            gl::Buffer::Usage::PERSISTENT |
-                            gl::Buffer::Usage::COHERENT);
-  pointLightMapping = pointLightBuffer.map(gl::Buffer::Mapping::WRITE |
-                                           gl::Buffer::Mapping::PERSISTENT |
-                                           gl::Buffer::Mapping::COHERENT);
+    buf.buffer.init(sizeof(PointLight::LightUniform), nullptr,
+                    gl::Buffer::Usage::WRITE | gl::Buffer::Usage::PERSISTENT |
+                        gl::Buffer::Usage::COHERENT);
+    buf.mapping = buf.buffer.map(gl::Buffer::Mapping::WRITE |
+                                 gl::Buffer::Mapping::PERSISTENT |
+                                 gl::Buffer::Mapping::COHERENT);
+  }
 
   graph.AddChild(std::make_shared<Water>(5000.0f, 110.0f, envMap));
 
@@ -554,6 +577,7 @@ Renderer::Renderer(int width, int height, const char title[])
       std::make_unique<PostProcess>(std::move(*fxaaRes));
   postProcesses.emplace_back(std::move(fxaaPtr));
 
+  setupHdrOutput(width, height);
   setupPostProcesses(width, height);
   setupLightFbo(width, height);
 }
@@ -621,11 +645,33 @@ void Renderer::render(const engine::FrameInfo& info) {
     return;
   }
 
-  if (!renderPointLights())
+  renderPointLights();
+
+  if (debugView == DebugView::DIFFUSE_LIGHT ||
+      debugView == DebugView::SPECULAR_LIGHT) {
+    gl::Framebuffer::unbind();
+    auto bg = engine::globals::DUMMY_VAO.bindGuard();
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_BLEND);
+    switch (debugView) {
+    case DebugView::DIFFUSE_LIGHT:
+      lightFbo.diffuse.bind(0);
+      break;
+    case DebugView::SPECULAR_LIGHT:
+      lightFbo.specular.bind(0);
+      break;
+    default:
+      break;
+    }
+    copyPP.run([]() {});
     return;
+  }
+
   auto bg = engine::globals::DUMMY_VAO.bindGuard();
   if (!combineDeferredLightBuffers())
     return;
+
   renderPostProcesses();
   renderLightGizmos();
 }
@@ -759,6 +805,8 @@ void Renderer::debugUi(const engine::FrameInfo& frame,
 
     ImGui::EndCombo();
   }
+  ImGui::SeparatorText("Effects");
+  ImGui::Checkbox("Enable Bloom", &enableBloom);
 
   ImGui::SeparatorText("Post Processes");
   for (auto& pp : postProcesses) {
@@ -769,11 +817,10 @@ void Renderer::debugUi(const engine::FrameInfo& frame,
   }
 }
 
-bool Renderer::renderPointLights() {
+void Renderer::renderPointLights() {
   {
     glViewport(0, 0, PointLight::SHADOW_MAP_SIZE, PointLight::SHADOW_MAP_SIZE);
     glScissor(0, 0, PointLight::SHADOW_MAP_SIZE, PointLight::SHADOW_MAP_SIZE);
-    auto bg = batchVao.bindGuard();
 
     GLuint writtenDraws = 0;
     gl::MappingRef indirectMap = {dynamicMapping, 0};
@@ -782,25 +829,28 @@ bool Renderer::renderPointLights() {
     }
 
     dynamicBuffer.bind(gl::Buffer::BasicTarget::DRAW_INDIRECT);
-    shadowMatrixBuffer.bindBase(gl::Buffer::StorageTarget::UNIFORM, 5);
 
     glCullFace(GL_FRONT);
 
+    size_t idx = 0;
     auto renderFn = [&]() {
+      shadowMatrixBuffers[idx].buffer.bindBase(
+          gl::Buffer::StorageTarget::UNIFORM, 5);
       for (const auto& root : graph.GetRoots()) {
-        root->renderDepthOnly();
+        root->renderDepthOnlyCube();
       }
 
       batchVao.bind();
-      batchShadowProgram.bind();
+      batchShadowCubeProgram.bind();
 
       glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, nullptr,
                                   writtenDraws,
                                   sizeof(gl::DrawElementsIndirectCommand));
+      ++idx;
     };
 
-    for (const auto& light : pointLights) {
-      light.renderShadowMap(renderFn, shadowMatrixMapping);
+    for (size_t i = 0; i < pointLights.size(); ++i) {
+      pointLights[i].renderShadowMap(renderFn, shadowMatrixBuffers[i].mapping);
     }
 
     gl::Vao::unbind();
@@ -839,31 +889,7 @@ bool Renderer::renderPointLights() {
     pointLights[i].getShadowMap().bind(4);
     glDrawArrays(GL_TRIANGLES, 0, 36);
   }
-
-  if (debugView == DebugView::DIFFUSE_LIGHT ||
-      debugView == DebugView::SPECULAR_LIGHT) {
-    gl::Framebuffer::unbind();
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_BLEND);
-    switch (debugView) {
-    case DebugView::DIFFUSE_LIGHT:
-      lightFbo.diffuse.bind(0);
-      break;
-    case DebugView::SPECULAR_LIGHT:
-      lightFbo.specular.bind(0);
-      break;
-    default:
-      break;
-    }
-    copyPP.run([]() {});
-
-    return false;
-  }
-
-  return true;
 }
-
 bool Renderer::combineDeferredLightBuffers() {
   glDisable(GL_CULL_FACE);
   glDisable(GL_BLEND);
@@ -876,12 +902,13 @@ bool Renderer::combineDeferredLightBuffers() {
   }
 
   deferredLightCombine.bind();
-  postProcessFlipFlops[0].fbo.bind();
+  hdrOutput.fbo.bind();
   gbuffers->diffuse.bind(0);
   lightFbo.diffuse.bind(1);
   lightFbo.specular.bind(2);
 
   glUniform3fv(0, 1, &ambientLight.x);
+  glUniform1i(1, enableBloom ? 0 : 1);
 
   glDrawArrays(GL_TRIANGLES, 0, 3);
 
@@ -901,6 +928,19 @@ void Renderer::renderPostProcesses() {
     bound = 1 - bound;
     postProcessFlipFlops[bound].fbo.bind();
   };
+
+  if (enableBloom) {
+    flip();
+    bloomBrightTex.bind(0);
+    blurPP.run(flip);
+    flip();
+    hdrOutput.tex.bind(1);
+    bloomPP.run(flip);
+  } else {
+    hdrOutput.fbo.blit(postProcessFlipFlops[0].fbo.id(), 0, 0, windowSize.width,
+                       windowSize.height, 0, 0, windowSize.width,
+                       windowSize.height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+  }
 
   gbuffers->normal.bind(1);
   gbuffers->material.bind(2);
@@ -936,6 +976,19 @@ void Renderer::renderLightGizmos() {
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
+void Renderer::setupHdrOutput(int width, int height) {
+  hdrOutput.fbo = {};
+  hdrOutput.tex = {};
+  bloomBrightTex = {};
+  hdrOutput.tex.storage(1, GL_RGBA32F, {width, height});
+  bloomBrightTex.storage(1, GL_RGBA32F, {width, height});
+  hdrOutput.fbo.attachTexture(GL_COLOR_ATTACHMENT0, hdrOutput.tex);
+  hdrOutput.fbo.attachTexture(GL_COLOR_ATTACHMENT1, bloomBrightTex);
+  constexpr GLenum attachments[2] = {GL_COLOR_ATTACHMENT0,
+                                     GL_COLOR_ATTACHMENT1};
+  glNamedFramebufferDrawBuffers(hdrOutput.fbo.id(), 2, attachments);
+}
+
 void Renderer::setupPostProcesses(int width, int height) {
   for (auto& pp : postProcessFlipFlops) {
     pp.tex = {};
@@ -947,9 +1000,9 @@ void Renderer::setupPostProcesses(int width, int height) {
 
 void Renderer::setupLightFbo(int width, int height) {
   lightFbo.diffuse = {};
-  lightFbo.diffuse.storage(1, GL_RGBA32F, {width, height});
+  lightFbo.diffuse.storage(1, GL_RGB32F, {width, height});
   lightFbo.specular = {};
-  lightFbo.specular.storage(1, GL_RGBA32F, {width, height});
+  lightFbo.specular.storage(1, GL_RGB32F, {width, height});
   lightFbo.fbo = {};
   lightFbo.fbo.attachTexture(GL_COLOR_ATTACHMENT0, lightFbo.diffuse);
   lightFbo.fbo.attachTexture(GL_COLOR_ATTACHMENT1, lightFbo.specular);

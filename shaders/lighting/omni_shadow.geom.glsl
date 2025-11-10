@@ -12,6 +12,8 @@ layout(std140, binding = 5) uniform LightUniforms {
 
 out Vertex {
     vec4 fragPos;
+    flat vec3 lightPos;
+    flat float radius;
 } OUT;
 
 void main() {
@@ -20,6 +22,8 @@ void main() {
 
     for (int vertex = 0; vertex < 3; ++vertex) {
       OUT.fragPos = gl_in[vertex].gl_Position;
+      OUT.lightPos = U.lightPos;
+      OUT.radius = U.radius;
       gl_Position = U.shadowMatrix[face] * OUT.fragPos;
       EmitVertex();
     }

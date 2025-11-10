@@ -10,8 +10,8 @@ public:
       : engine::scene::Node({engine::scene::Node::RenderType::LIT, true}),
         size(size), yLevel(yLevel), envMap(envMap) {
     auto waterProgOpt = gl::Program::fromFiles(
-        {{SHADERDIR "water.vert.glsl", gl::Shader::Type::VERTEX},
-         {SHADERDIR "water.frag.glsl", gl::Shader::Type::FRAGMENT}});
+        {{SHADERDIR "water/vert.glsl", gl::Shader::Type::VERTEX},
+         {SHADERDIR "water/frag.glsl", gl::Shader::Type::FRAGMENT}});
     if (!waterProgOpt) {
       Logger::error("Failed to create water program: {}", waterProgOpt.error());
       throw std::runtime_error("Failed to create water program");
@@ -19,8 +19,7 @@ public:
     waterProgram = std::move(*waterProgOpt);
 
     auto waterDepthProgOpt = gl::Program::fromFiles(
-        {{SHADERDIR "water_shadow.vert.glsl", gl::Shader::Type::VERTEX},
-         {SHADERDIR "lighting/shadow.geom.glsl", gl::Shader::Type::GEOMETRY},
+        {{SHADERDIR "water/shadow.vert.glsl", gl::Shader::Type::VERTEX},
          {SHADERDIR "lighting/depth_to_linear.frag.glsl",
           gl::Shader::Type::FRAGMENT}});
     if (!waterDepthProgOpt) {
@@ -29,6 +28,19 @@ public:
       throw std::runtime_error("Failed to create water depth program");
     }
     waterDepthProgram = std::move(*waterDepthProgOpt);
+
+    auto waterDepthCubeProgOpt = gl::Program::fromFiles(
+        {{SHADERDIR "water/shadow_cube.vert.glsl", gl::Shader::Type::VERTEX},
+         {SHADERDIR "lighting/omni_shadow.geom.glsl",
+          gl::Shader::Type::GEOMETRY},
+         {SHADERDIR "lighting/depth_to_linear.frag.glsl",
+          gl::Shader::Type::FRAGMENT}});
+    if (!waterDepthCubeProgOpt) {
+      Logger::error("Failed to create water depth program: {}",
+                    waterDepthCubeProgOpt.error());
+      throw std::runtime_error("Failed to create water depth program");
+    }
+    waterDepthCubeProgram = std::move(*waterDepthCubeProgOpt);
 
     auto diffuseImgOpt = engine::Image::fromFile(TEXTUREDIR "water.tga", true);
     if (!diffuseImgOpt) {
@@ -61,7 +73,6 @@ public:
 
   void update(const engine::FrameInfo& frame) override { (void)frame; }
   void render(const engine::Frustum& frustum) override {
-    (void)frustum;
     auto bg = engine::globals::DUMMY_VAO.bindGuard();
     waterProgram.bind();
     diffuseMap.bind(0);
@@ -75,15 +86,24 @@ public:
     engine::scene::Node::render(frustum);
   }
 
-  void renderDepthOnly() override {
+  void renderDepthOnly(const engine::Frustum& frustum) override {
     auto bg = engine::globals::DUMMY_VAO.bindGuard();
     waterDepthProgram.bind();
+    glUniform1f(1, yLevel);
+    glUniform1f(2, 10.f);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    engine::scene::Node::renderDepthOnly(frustum);
+  }
+
+  void renderDepthOnlyCube() override {
+    auto bg = engine::globals::DUMMY_VAO.bindGuard();
+    waterDepthCubeProgram.bind();
 
     glUniform1f(1, yLevel);
     glUniform1f(2, 10.f);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-    engine::scene::Node::renderDepthOnly();
+    engine::scene::Node::renderDepthOnlyCube();
   }
 
 private:
@@ -92,6 +112,7 @@ private:
 
   gl::Program waterProgram;
   gl::Program waterDepthProgram;
+  gl::Program waterDepthCubeProgram;
 
   gl::Texture diffuseMap;
   gl::Texture bumpMap;

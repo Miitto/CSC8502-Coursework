@@ -50,7 +50,7 @@ float calculateOcclusion(vec3 fragPos) {
 
 void main() {
   if (fullbright != 0) {
-    diffuseOut = IN.lightColor;
+    diffuseOut = vec4(IN.lightColor.rbg * IN.lightColor.a, 1.0);
     specularOut = vec4(0.0);
     return;
   }
@@ -87,7 +87,7 @@ void main() {
   float lambert = clamp(dot(incident, normal), 0.0, 1.0);
   float rFactor = clamp(dot(halfDir, normal), 0.0, 1.0);
   float specFactor = pow(rFactor, mix(1.0, 256.0,roughness)) * specular;
-  vec3 attenuated = IN.lightColor.rgb * atten;
+  vec3 attenuated = IN.lightColor.rgb * atten * IN.lightColor.a;
 
   float shadowOcclusion = calculateOcclusion(world);
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "light.hpp"
 #include <array>
 #include <engine/camera.hpp>
 #include <engine/frustum.hpp>
@@ -11,7 +10,13 @@
 
 class PointLight {
 public:
-  constexpr static int32_t SHADOW_MAP_SIZE = 2048;
+  constexpr static int32_t SHADOW_MAP_SIZE = 4096;
+
+  struct LightUniform {
+    glm::mat4 shadowMatrix[6];
+    glm::vec3 position;
+    float radius;
+  };
 
   struct InstanceData {
     glm::vec3 position = glm::vec3(0.0);
@@ -75,22 +80,21 @@ public:
     uniformData.position = m.position;
     uniformData.radius = m.radius;
 
-    glm::mat4 shadowProj =
-        glm::perspective(glm::radians(90.0f), 1.0f, m.radius, 1.0f);
-
     for (int d = 0; d < directions.size(); ++d) {
       glm::mat4 shadowView =
           glm::lookAt(m.position, m.position + directions[d],
                       d == 2 || d == 3 ? glm::vec3(0.0, 0.0, 1.0)
                                        : glm::vec3(0.0, -1.0, 0.0));
 
-      glm::mat4 shadowViewProj = shadowProj * shadowView;
+      glm::mat4 shadowViewProj = perspective * shadowView;
       uniformData.shadowMatrix[d] = shadowViewProj;
     }
 
     matrixMapping.write(&uniformData, sizeof(LightUniform), 0);
 
     renderFn();
+    glMemoryBarrier(GL_UNIFORM_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT |
+                    GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
   }
 
   const gl::CubeMap& getShadowMap() const { return shadowMap; }
