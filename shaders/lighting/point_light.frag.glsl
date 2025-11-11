@@ -32,7 +32,7 @@ float calculateOcclusion(vec3 fragPos) {
   vec3 worldToLight = fragPos - IN.lightPos;
   float depthCenter = 1.0 - texture(shadowMap, worldToLight).r;
 
-  float offset = 1.0f / 2048.0f; // assuming 2048x2048 shadow map resolution
+  float offset = 1.0f / 4096.0f; // assuming 2048x2048 shadow map resolution
 
   float depthRight = 1.0 - texture(shadowMap, worldToLight + vec3(offset, 0.0, 0.0)).r;
   float depthLeft = 1.0 - texture(shadowMap, worldToLight + vec3(-offset, 0.0, 0.0)).r;
@@ -66,9 +66,12 @@ void main() {
   float fragPercentage = gl_FragCoord.x / windowX;
 
   uv.x = fragPercentage;
+
+  // UV coord of this fragment relative to the viewport, not the window
+  float viewportX = (fragPercentage - CAM.uvRange.x) / uvRange;
   
   float depth = texture(depthTex, uv).r;
-  vec3 ndc = vec3(uv, depth) * 2.0 - 1.0;
+  vec3 ndc = vec3(vec2(viewportX, uv.y), depth) * 2.0 - 1.0;
   vec4 invClip = CAM.invViewProj * vec4(ndc, 1.0);
   vec3 world = invClip.xyz / invClip.w;
 
