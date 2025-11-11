@@ -8,6 +8,7 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invProj;
     mat4 invViewProj;
     vec2 resolution;
+    vec2 uvRange;
 } CAM;
 
 

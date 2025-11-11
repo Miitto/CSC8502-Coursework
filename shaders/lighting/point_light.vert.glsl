@@ -28,6 +28,7 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invProj;
     mat4 invViewProj;
     vec2 resolution;
+    vec2 uvRange;
 } CAM;
 
 layout(location = 0) uniform vec3 lightPos;
@@ -45,7 +46,7 @@ void main() {
     vec3 worldPos = (POS[INDICES[gl_VertexID]] * scale) + lightPos;
 
     gl_Position = CAM.viewProj * vec4(worldPos, 1.0);
-    
+
     OUT.lightPos = lightPos;
     OUT.lightRadius = lightRadius;
     OUT.lightColor = lightColor;

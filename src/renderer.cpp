@@ -384,20 +384,25 @@ struct fmt::formatter<DebugView> : fmt::formatter<std::string_view> {
 
 Renderer::Renderer(int width, int height, const char title[])
     : engine::App(width, height, title),
-      camera(engine::PerspectiveCamera(0.1f, 10000.0f,
+      camera(engine::PerspectiveCamera{0.1f, 10000.0f,
                                        static_cast<float>(width) /
                                            static_cast<float>(height),
-                                       glm::radians(90.0f)),
-             engine::PerspectiveCamera(0.1f, 10000.0f,
+                                       glm::radians(90.0f)},
+             engine::PerspectiveCamera{0.1f, 10000.0f,
                                        static_cast<float>(width) /
                                            static_cast<float>(height),
-                                       glm::radians(90.f)),
+                                       glm::radians(90.f)},
              {width, height}) {
-
   camera.setSplitRatio(0.0f);
   camera.onResize(width, height);
 
   camera.left().SetPosition({0.f, 300.f, 0.0f});
+  camera.left().SetRotation({-35, 270});
+  camera.left().EnableMouse(false);
+
+  camera.right().SetPosition({90, 300, 0});
+  camera.right().SetRotation({-35, 90});
+  camera.right().EnableMouse(false);
 
   auto cubeMapResult = getEnvMap();
   if (!cubeMapResult) {
@@ -613,6 +618,15 @@ void Renderer::render(const engine::FrameInfo& info) {
 
   auto batch = setupBatches();
 
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_GREATER);
+  glClear(GL_DEPTH_BUFFER_BIT);
+
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+
+  glDisable(GL_BLEND);
+
   if (camera.getSplitRatio() < 1.0f) {
     camera.leftView();
     auto& camera = this->camera.left();
@@ -630,8 +644,7 @@ void Renderer::render(const engine::FrameInfo& info) {
     renderLit(nodeLists, batch, camera);
   }
 
-  glViewport(0, 0, windowSize.width, windowSize.height);
-  glScissor(0, 0, windowSize.width, windowSize.height);
+  camera.fullView();
 
   debugUi(info);
   if (debugView == DebugView::DIFFUSE || debugView == DebugView::NORMAL ||
@@ -767,14 +780,6 @@ Renderer::BatchSetup Renderer::setupBatches() {
 void Renderer::renderLit(const engine::scene::Graph::NodeLists& nodeLists,
                          const BatchSetup& batch,
                          const engine::Camera& camera) {
-  glEnable(GL_DEPTH_TEST);
-  glDepthFunc(GL_GREATER);
-  glClear(GL_DEPTH_BUFFER_BIT);
-
-  glEnable(GL_CULL_FACE);
-  glCullFace(GL_BACK);
-
-  glDisable(GL_BLEND);
 
   camera.bindMatrixBuffer(0);
 
@@ -797,7 +802,10 @@ void Renderer::debugUi(const engine::FrameInfo& frame) {
   (void)frame;
 
   engine::gui::GuiWindow cameraFrame("Camera");
-  ImGui::Text("Split Ratio: %.2f", camera.getSplitRatio());
+  float splitRatio = camera.getSplitRatio();
+  if (ImGui::SliderFloat("Split Ratio", &splitRatio, 0.0, 1.0)) {
+    camera.setSplitRatio(splitRatio);
+  }
   camera.left().CameraDebugUI();
   camera.right().CameraDebugUI();
   ImGui::SeparatorText("Debug Views");
@@ -831,7 +839,6 @@ void Renderer::debugUi(const engine::FrameInfo& frame) {
 void Renderer::renderPointLights() {
   {
     glViewport(0, 0, PointLight::SHADOW_MAP_SIZE, PointLight::SHADOW_MAP_SIZE);
-    glScissor(0, 0, PointLight::SHADOW_MAP_SIZE, PointLight::SHADOW_MAP_SIZE);
 
     GLuint writtenDraws = 0;
     gl::MappingRef indirectMap = {dynamicMapping, 0};
@@ -866,9 +873,6 @@ void Renderer::renderPointLights() {
 
     gl::Vao::unbind();
   }
-  camera.bindMatrixBuffer(0);
-  glViewport(0, 0, windowSize.width, windowSize.height);
-  glScissor(0, 0, windowSize.width, windowSize.height);
   glCullFace(GL_BACK);
 
   pointLight.bind();
@@ -893,14 +897,31 @@ void Renderer::renderPointLights() {
 
   glUniform1ui(3, 0);
 
-  for (size_t i = 0; i < pointLights.size(); ++i) {
-    glUniform3fv(0, 1, &pointLights[i].position()[0]);
-    glUniform1f(1, pointLights[i].radius());
-    glUniform4fv(2, 1, &pointLights[i].color()[0]);
-    pointLights[i].getShadowMap().bind(4);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
+  if (camera.getSplitRatio() < 1.0f) {
+    camera.leftView();
+    camera.left().bindMatrixBuffer(0);
+    for (size_t i = 0; i < pointLights.size(); ++i) {
+      glUniform3fv(0, 1, &pointLights[i].position()[0]);
+      glUniform1f(1, pointLights[i].radius());
+      glUniform4fv(2, 1, &pointLights[i].color()[0]);
+      pointLights[i].getShadowMap().bind(4);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
   }
+  if (camera.getSplitRatio() > 0.0f) {
+    camera.rightView();
+    camera.right().bindMatrixBuffer(0);
+    for (size_t i = 0; i < pointLights.size(); ++i) {
+      glUniform3fv(0, 1, &pointLights[i].position()[0]);
+      glUniform1f(1, pointLights[i].radius());
+      glUniform4fv(2, 1, &pointLights[i].color()[0]);
+      pointLights[i].getShadowMap().bind(4);
+      glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+  }
+  camera.fullView();
 }
+
 bool Renderer::combineDeferredLightBuffers() {
   glDisable(GL_CULL_FACE);
   glDisable(GL_BLEND);
@@ -965,7 +986,17 @@ void Renderer::renderPostProcesses() {
     if (!pp->isEnabled())
       continue;
     flip();
-    pp->run(flip);
+
+    if (camera.getSplitRatio() < 1.0f) {
+      camera.leftView();
+      camera.left().bindMatrixBuffer(0);
+      pp->run(flip);
+    }
+    if (camera.getSplitRatio() > 0.0f) {
+      camera.rightView();
+      camera.right().bindMatrixBuffer(0);
+      pp->run(flip);
+    }
   }
   gl::Framebuffer::unbind();
   postProcessFlipFlops[bound].fbo.blit(

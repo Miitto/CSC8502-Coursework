@@ -8,6 +8,7 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invProj;
     mat4 invViewProj;
     vec2 resolution;
+    vec2 uvRange;
 } CAM;
 
 layout(binding = 0) uniform sampler2D diffuse;
@@ -26,10 +27,13 @@ in Vertex {
 out vec4 fragColor;
 
 void main() {
-  float depth = texture(depth, IN.uv).r;
+  vec2 uv = IN.uv;
+  uv.x = mix(CAM.uvRange.x, CAM.uvRange.y, uv.x);
+
+  float depth = texture(depth, uv).r;
 
   if (depth > 0.0) {
-    vec4 diffuse = texture(diffuse, IN.uv);
+    vec4 diffuse = texture(diffuse, uv);
     fragColor = diffuse;
   } else {
     vec4 env = texture(skybox, normalize(IN.viewDir));

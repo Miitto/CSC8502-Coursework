@@ -8,6 +8,7 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invProj;
     mat4 invViewProj;
     vec2 resolution;
+    vec2 uvRange;
 } CAM;
 
 layout(binding = 0) uniform sampler2D diffuseTex;
@@ -55,8 +56,17 @@ void main() {
     return;
   }
 
-  vec2 uv = gl_FragCoord.xy / CAM.resolution;
+  vec2 uv;
+  uv.y = gl_FragCoord.y / CAM.resolution.y;
 
+  float uvRange = CAM.uvRange.y - CAM.uvRange.x;
+
+  float windowX = CAM.resolution.x / uvRange;
+
+  float fragPercentage = gl_FragCoord.x / windowX;
+
+  uv.x = fragPercentage;
+  
   float depth = texture(depthTex, uv).r;
   vec3 ndc = vec3(uv, depth) * 2.0 - 1.0;
   vec4 invClip = CAM.invViewProj * vec4(ndc, 1.0);

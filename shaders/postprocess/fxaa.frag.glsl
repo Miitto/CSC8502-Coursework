@@ -137,6 +137,7 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invProj;
     mat4 invViewProj;
     vec2 resolution;
+    vec2 uvRange;
 } CAM;
 
 layout(binding = 0) uniform sampler2D diffuseTex;
@@ -149,6 +150,12 @@ in Vertex {
 out vec4 fragColor;
 
 void main() {
-    vec2 fragCoord = IN.uv * CAM.resolution;
-    fragColor = apply(diffuseTex, fragCoord, CAM.resolution);
+    vec2 uv = IN.uv;
+    uv.x = mix(CAM.uvRange.x, CAM.uvRange.y, uv.x);
+
+    vec2 resolution = CAM.resolution;
+    resolution.x /= (CAM.uvRange.y - CAM.uvRange.x);
+
+    vec2 fragCoord = uv * resolution;
+    fragColor = apply(diffuseTex, fragCoord, resolution);
 }
