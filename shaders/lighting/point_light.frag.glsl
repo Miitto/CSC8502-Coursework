@@ -19,6 +19,8 @@ layout(binding = 4) uniform samplerCube shadowMap;
 
 layout(location = 3) uniform uint fullbright = 0;
 
+const float PI = 3.14159265359;
+
 in Vertex {
   vec3 lightPos;
   float lightRadius;
@@ -30,15 +32,15 @@ layout(location = 1) out vec4 specularOut;
 
 float calculateOcclusion(vec3 fragPos) {
   vec3 worldToLight = fragPos - IN.lightPos;
-  float depthCenter = 1.0 - texture(shadowMap, worldToLight).r;
+  float depthCenter = texture(shadowMap, worldToLight).r;
 
   float offset = 1.0f / 4096.0f; // assuming 2048x2048 shadow map resolution
 
-  float depthRight = 1.0 - texture(shadowMap, worldToLight + vec3(offset, 0.0, 0.0)).r;
-  float depthLeft = 1.0 - texture(shadowMap, worldToLight + vec3(-offset, 0.0, 0.0)).r;
-  float depthUp = 1.0 - texture(shadowMap, worldToLight + vec3(0.0, offset, 0.0)).r;
-  float depthDown = 1.0 - texture(shadowMap, worldToLight + vec3(0.0, -offset, 0.0)).r;
-  float depth = (depthCenter + depthRight + depthLeft + depthUp + depthDown) / 5.0;
+  float depthRight = texture(shadowMap, worldToLight + vec3(offset, 0.0, 0.0)).r;
+  float depthLeft = texture(shadowMap, worldToLight + vec3(-offset, 0.0, 0.0)).r;
+  float depthUp = texture(shadowMap, worldToLight + vec3(0.0, offset, 0.0)).r;
+  float depthDown =  texture(shadowMap, worldToLight + vec3(0.0, -offset, 0.0)).r;
+  float depth = 1.0 - (depthCenter + depthRight + depthLeft + depthUp + depthDown) / 5.0;
 
   depth *= IN.lightRadius;
 
@@ -47,6 +49,45 @@ float calculateOcclusion(vec3 fragPos) {
   float bias = 0.05;
   float shadow = currentDepth - bias > depth ? 0.0 : 1.0;
   return shadow;
+}
+
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a      = roughness*roughness;
+    float a2     = a*a;
+    float NdotH  = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH*NdotH;
+	
+    float num   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+	
+    return num / denom;
+}
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}  
+
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+    float r = (roughness + 1.0);
+    float k = (r*r) / 8.0;
+
+    float num   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+	
+    return num / denom;
+}
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2  = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1  = GeometrySchlickGGX(NdotL, roughness);
+	
+    return ggx1 * ggx2;
 }
 
 void main() {
@@ -83,10 +124,16 @@ void main() {
       discard;
   }
 
+  vec4 aSample = texture(diffuseTex, uv);
+  vec3 albedo = pow(aSample.rgb, vec3(2.2)) * aSample.a;
   vec4 material = texture(materialTex, uv);
   float emissivity = material.r;
-  float roughness = material.g;
-  float specular = material.b;
+  float metallic = material.g;
+  float roughness = material.b;
+  float ao = material.a;
+
+  vec3 F0 = vec3(0.04);
+  F0 = mix(F0, albedo.rgb, metallic);
 
   vec3 camPos = CAM.invView[3].xyz;
 
@@ -97,15 +144,29 @@ void main() {
   vec3 viewDir = normalize(camPos - world);
   vec3 halfDir = normalize(incident + viewDir);
 
-  float lambert = clamp(dot(incident, normal), 0.0, 1.0);
-  float rFactor = clamp(dot(halfDir, normal), 0.0, 1.0);
-  float specFactor = pow(rFactor, mix(1.0, 256.0,roughness)) * specular;
-  vec3 attenuated = IN.lightColor.rgb * atten * IN.lightColor.a;
+  vec3 radiance = IN.lightColor.rgb * IN.lightColor.a;
+  radiance *= atten;
 
+  float NDF = DistributionGGX(normal, halfDir, roughness);
+  float G = GeometrySmith(normal, viewDir, incident, roughness);
+  vec3 F = fresnelSchlick(max(dot(halfDir, viewDir), 0.0), F0);
+
+  vec3 kS = F;
+  vec3 kD = vec3(1.0) - F;
+  kD *= 1.0 - metallic;
+  
+  vec3 numerator = NDF * G * F;
+  float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * max(dot(normal, incident), 0.0) + 0.001;
+  vec3 specular = numerator / denominator;
+
+  float NdotL = max(dot(normal, incident), 0.0);
+  
   float shadowOcclusion = calculateOcclusion(world);
+  radiance *= shadowOcclusion;
 
-  vec4 diffuse = vec4(max(attenuated * lambert, vec3(emissivity)), 1.0);
+  specularOut = vec4(specular * radiance * NdotL, 1.0);
 
-  diffuseOut = diffuse * shadowOcclusion;
-  specularOut = vec4(attenuated * specFactor, 1.0) * shadowOcclusion;
+  vec3 adjusted = kD * (albedo.rgb / PI + specular) * NdotL * radiance;
+
+  diffuseOut = vec4(adjusted, 1.0);
 }

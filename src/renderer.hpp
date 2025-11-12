@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blur.hpp"
+#include "cameraTrack.hpp"
 #include "pointLight.hpp"
 #include "postprocess.hpp"
 #include <array>
@@ -19,6 +20,8 @@ public:
   void onWindowResize(engine::Window::Size newSize) override;
 
 private:
+  void setupCameraTrack();
+
   void debugUi(const engine::FrameInfo& frame);
 
   struct BatchSetup {
@@ -39,6 +42,9 @@ private:
       camera;
 
   engine::scene::Graph graph;
+
+  bool onTrack = true;
+  CameraTrack track = {};
 
   GLuint staticVertexSize = 0;
   GLuint jointOffset = 0;

@@ -33,8 +33,12 @@ void main() {
 
   vec4 diffuse = texture(diffuse, uv);
   vec3 normal = texture(normal, uv).xyz * 2.0 - 1.0;
-  vec4 material = texture(material, uv);
-  float reflectivity = material.a;
+
+  vec4 specSample = texture(specularLight, uv);
+  vec3 spec = specSample.rgb * specSample.a;
+
+  float reflectivity = spec.r + spec.g + spec.b;
+  reflectivity = clamp(reflectivity, 0.0, 1.0);
 
   if (reflectivity == 0.0) {
     fragColor = diffuse;

@@ -22,16 +22,14 @@ void main() {
   vec3 light = texture(diffuseLight, IN.uv).rgb;
   vec3 specular = texture(specularLight, IN.uv).rgb;
 
-  fragColor.rgb = diffuse * ambient; // Ambient
-  fragColor.rgb += diffuse * light; // Lambert
-  fragColor.rgb += specular; // Specular
+  fragColor.rgb = ambient * diffuse; // Ambient
+  fragColor.rgb += light; // Lambert
   fragColor.a = 1.0;
 
 
   float brightness = dot(fragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
 
   if (adjust) {
-
     // Tone map
     fragColor.rgb = fragColor.rgb / (fragColor.rgb + vec3(1.0));
 

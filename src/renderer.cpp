@@ -350,6 +350,7 @@ namespace {
 
     return writtenDraws;
   }
+
 } // namespace
 
 template <>
@@ -382,6 +383,34 @@ struct fmt::formatter<DebugView> : fmt::formatter<std::string_view> {
   }
 };
 
+void Renderer::setupCameraTrack() {
+  track.addKeyframe(0.f, {2000.f, 1000.f, 2000.f}, {-35.f, 45.f});
+  track.addKeyframe(10.f, {100.f, 300.f, 40.f}, {-35.f, 45.f});
+  track.addEffect(10.f, [&](float) { enableBloom = true; });
+  track.addEffect(15.f, [&](float) { enableBloom = false; });
+  track.addKeyframe(15.f, {40.f, 300.f, 45.f}, {-35.f, 0.f});
+  track.addEffect(17.f, [&](float) { postProcesses[2]->disable(); });
+  track.addEffect(19.f, [&](float) { postProcesses[2]->enable(); });
+  track.addKeyframe(20.f, {40.f, 300.f, 45.f}, {-35.f, 0.f});
+  track.addKeyframe(25.f, {-20.f, 310.f, 20.f}, {-40.f, -50.f});
+  track.addKeyframe(30.f, {-1000.f, 300.f, 1000.f}, {-45.f, 225.f});
+  track.addEffect(32.5f, [&](float) { postProcesses[1]->disable(); });
+  track.addEffect(35.f, [&](float) { postProcesses[1]->enable(); });
+  track.addKeyframe(35.f, {-1000.f, 300.f, 1000.f}, {-45.f, 225.f});
+  track.addKeyframe(37.5f, {-1000.f, 300.f, 1000.f}, {35.f, 225.f});
+  track.addEffect(38.f, [&](float) { postProcesses[0]->disable(); });
+  track.addEffect(42.f, [&](float) { postProcesses[0]->enable(); });
+  track.addKeyframe(45.f, {-1000.f, 300.f, 1000.f}, {35.f, 225.f});
+  track.addEffect(45.f, 45.5f, [&](float t) {
+    float factor = t;
+    float cubicT = factor < 0.5f ? 4.f * factor * factor * factor
+                                 : 1.f - powf(-2.f * factor + 2.f, 3) / 2.f;
+
+    camera.setSplitRatio(cubicT);
+  });
+  track.addKeyframe(50.f, {-1000.f, 300.f, 1000.f}, {35.f, 225.f});
+}
+
 Renderer::Renderer(int width, int height, const char title[])
     : engine::App(width, height, title),
       camera(engine::PerspectiveCamera{0.1f, 10000.0f,
@@ -397,12 +426,14 @@ Renderer::Renderer(int width, int height, const char title[])
   camera.onResize(width, height);
 
   camera.left().SetPosition({0.f, 300.f, 0.0f});
-  camera.left().SetRotation({-35, 270});
+  camera.left().SetRotation(glm::quat(glm::radians(glm::vec3(-35, 270, 0))));
   camera.left().EnableMouse(false);
 
-  camera.right().SetPosition({90, 300, 0});
-  camera.right().SetRotation({-35, 90});
+  camera.right().SetPosition({2000, 1000, 0});
+  camera.right().SetRotation(glm::quat(glm::radians(glm::vec3(-35, 90, 0))));
   camera.right().EnableMouse(false);
+
+  setupCameraTrack();
 
   auto cubeMapResult = getEnvMap();
   if (!cubeMapResult) {
@@ -600,7 +631,22 @@ void Renderer::onWindowResize(engine::Window::Size newSize) {
 
 void Renderer::update(const engine::FrameInfo& info) {
   engine::App::update(info);
-  camera.update(input, info.frameDelta);
+
+  if (onTrack) {
+    track.update(info.frameDelta);
+    auto pos = track.position();
+    auto rot = track.rotation();
+
+    camera.left().SetPosition(pos);
+    camera.left().SetRotation(rot);
+
+    if (input.isKeyDown(GLFW_KEY_ESCAPE)) {
+      onTrack = false;
+      camera.left().EnableMouse(true);
+    }
+  }
+
+  camera.update(input, info.frameDelta, !onTrack);
 
   if (input.isKeyPressed(GLFW_KEY_B)) {
     enableBloom = !enableBloom;
@@ -698,7 +744,6 @@ void Renderer::render(const engine::FrameInfo& info) {
     return;
 
   renderPostProcesses();
-  renderLightGizmos();
 }
 
 Renderer::BatchSetup Renderer::setupBatches() {
@@ -808,6 +853,13 @@ void Renderer::debugUi(const engine::FrameInfo& frame) {
   }
   camera.left().CameraDebugUI();
   camera.right().CameraDebugUI();
+  static bool vSync = true;
+  if (ImGui::Checkbox("VSync", &vSync)) {
+    int interval = vSync ? 1 : 0;
+    glfwSwapInterval(interval);
+    Logger::info("VSync {}", vSync ? "Enabled" : "Disabled");
+  }
+
   ImGui::SeparatorText("Debug Views");
   if (ImGui::BeginCombo("View", fmt::format("{}", debugView).c_str())) {
 #define SEL(NAME, ENUM)                                                        \

@@ -36,5 +36,5 @@ void main() {
 
   diffuseOut = vec4(diffuse, 1.0);
   normalOut = vec4(normalize(bumpedNormal), 1.0);
-  materialOut = vec4(0.0, 0.0, 0.5, 0.8);
+  materialOut = vec4(0.8, 0.0, 0.2, 0.0);
 }
