@@ -127,7 +127,6 @@ void main() {
   vec4 aSample = texture(diffuseTex, uv);
   vec3 albedo = pow(aSample.rgb, vec3(2.2)) * aSample.a;
   vec4 material = texture(materialTex, uv);
-  float emissivity = material.r;
   float metallic = material.g;
   float roughness = material.b;
   float ao = material.a;
@@ -137,8 +136,7 @@ void main() {
 
   vec3 camPos = CAM.invView[3].xyz;
 
-  vec3 sampledNormal = texture(normalTex, uv).xyz;
-  vec3 normal = normalize(sampledNormal * 2.0 - 1.0);
+  vec3 normal = normalize(texture(normalTex, uv).xyz);
 
   vec3 incident = normalize(IN.lightPos - world);
   vec3 viewDir = normalize(camPos - world);
@@ -159,7 +157,7 @@ void main() {
   float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * max(dot(normal, incident), 0.0) + 0.001;
   vec3 specular = numerator / denominator;
 
-  float NdotL = max(dot(normal, incident), 0.0);
+  float NdotL = clamp(dot(normal, incident), 0.0, 1.0);
   
   float shadowOcclusion = calculateOcclusion(world);
   radiance *= shadowOcclusion;

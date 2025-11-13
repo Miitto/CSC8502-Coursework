@@ -32,14 +32,12 @@ void main() {
   uv.x = mix(CAM.uvRange.x, CAM.uvRange.y, uv.x);
 
   vec4 diffuse = texture(diffuse, uv);
+  float reflectivity = texture(material, uv).r;
   vec3 normal = texture(normal, uv).xyz * 2.0 - 1.0;
 
   vec4 specSample = texture(specularLight, uv);
   vec3 spec = specSample.rgb * specSample.a;
-
-  float reflectivity = spec.r + spec.g + spec.b;
-  reflectivity = clamp(reflectivity, 0.0, 1.0);
-
+  
   if (reflectivity == 0.0) {
     fragColor = diffuse;
     return;
@@ -49,4 +47,5 @@ void main() {
   vec4 env = texture(skybox, reflectDir);
 
   fragColor = mix(diffuse, env, reflectivity);
+  fragColor += vec4(spec, 1.0);
 }

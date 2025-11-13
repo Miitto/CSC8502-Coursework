@@ -6,21 +6,27 @@
 #include "postprocess.hpp"
 #include <array>
 #include <engine/app.hpp>
+#include <engine/mesh/basic.hpp>
 #include <engine/split_camera.hpp>
 #include <gl/gl.hpp>
 #include <memory>
+#include <spotLight.hpp>
 
 class Renderer : public engine::App {
 public:
   Renderer(int width, int height, const char title[]);
 
-  void update(const engine::FrameInfo& frame) override;
+  bool update(const engine::FrameInfo& frame) override;
   void render(const engine::FrameInfo& frame) override;
 
   void onWindowResize(engine::Window::Size newSize) override;
 
 private:
   void setupCameraTrack();
+  bool setupMeshes();
+  bool setupPostProcesses();
+  bool setupShaders();
+  void setupLights();
 
   void debugUi(const engine::FrameInfo& frame);
 
@@ -32,16 +38,21 @@ private:
 
   BatchSetup setupBatches();
   void renderLit(const engine::scene::Graph::NodeLists& nodeLists,
-                 const BatchSetup& batch, const engine::Camera& camera);
+                 const BatchSetup& batch, const engine::Camera& camera,
+                 GLuint offset);
   void renderPointLights();
+  void renderSpotLights();
   bool combineDeferredLightBuffers();
   void renderPostProcesses();
-  void renderLightGizmos();
 
   engine::SplitCamera<engine::PerspectiveCamera, engine::PerspectiveCamera>
       camera;
 
+  void useLeftCamera();
+  void useRightCamera();
+
   engine::scene::Graph graph;
+  engine::scene::Graph rightGraph;
 
   bool onTrack = true;
   CameraTrack track = {};
@@ -49,6 +60,7 @@ private:
   GLuint staticVertexSize = 0;
   GLuint jointOffset = 0;
   GLuint jointSize = 0;
+  GLuint rightIndirectOffset = 0;
 
   gl::Program skinProgram;
 
@@ -69,8 +81,10 @@ private:
   };
 
   std::vector<MappedBuffer> shadowMatrixBuffers;
+  std::vector<MappedBuffer> spotShadowMatrixBuffers;
 
   gl::Program pointLight;
+  gl::Program spotLight;
   gl::Program deferredLightCombine;
 
   struct LightFbo {
@@ -80,16 +94,25 @@ private:
   };
 
   LightFbo lightFbo = {};
+
+  engine::mesh::BasicMesh pointLightMesh;
   std::vector<PointLight> pointLights = {};
+  std::vector<PointLight> rightPointLights = {};
+
+  engine::mesh::BasicMesh spotLightMesh;
+  std::vector<SpotLight> spotLights = {};
+  std::vector<SpotLight> rightSpotLights = {};
 
   gl::CubeMap envMap = {};
+  gl::CubeMap nightEnvMap = {};
 
   std::vector<std::unique_ptr<PostProcess>> postProcesses;
   PostProcess copyPP;
   Blur blurPP;
   PostProcess bloomPP;
   bool enableBloom = false;
-  gl::Program depthView;
+
+  bool enableDebugUi = false;
 
   struct Fbos {
     gl::Texture tex = {};

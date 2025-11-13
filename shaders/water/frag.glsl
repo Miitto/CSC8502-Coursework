@@ -8,6 +8,8 @@ layout(std140, binding = 0) uniform CameraMats {
     mat4 invProj;
     mat4 invViewProj;
     vec2 resolution;
+    vec2 uvRange;
+    float time;
 } CAM;
 
 layout(binding = 0) uniform sampler2D diffuseMap;
@@ -23,8 +25,12 @@ layout(location = 2) out vec4 materialOut;
 
 
 void main() {
-  vec3 diffuse = texture(diffuseMap, IN.uv).rgb;
-  vec3 bump = texture(waterBump, IN.uv).rgb * 2.0 - 1.0;
+  vec2 diffuseOffset = vec2(CAM.time * 0.025, CAM.time * 0.0125);
+  vec3 diffuse = texture(diffuseMap, IN.uv + diffuseOffset).rgb;
+
+  vec2 bumpOffset = vec2(CAM.time * 0.05, CAM.time * 0.0125);
+
+  vec3 bump = texture(waterBump, IN.uv + bumpOffset).rgb * 2.0 - 1.0;
 
   vec3 tangent = vec3(1.0, 0.0, 0.0);
   vec3 binormal = vec3(0.0, 0.0, 1.0);

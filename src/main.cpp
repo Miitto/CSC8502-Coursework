@@ -12,8 +12,14 @@ int main() {
     }
   }
 
-  Renderer app(800, 600, "CSC8502 FLOAT");
+  Renderer app(800, 600, "CSC8502 IGNORE");
 
+  if (!app.shouldBail()) {
+    Logger::info("Initialization successful, entering main loop");
+  } else {
+    Logger::error("Initialization failed, exiting");
+    return -1;
+  }
   int r = engine::run(app);
 
   if (r != 0) {

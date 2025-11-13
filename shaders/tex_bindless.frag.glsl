@@ -48,5 +48,5 @@ void main() {
     materialOut = texture(sampler2D(tex.material), IN.uv);
   }
 
-  normalOut = vec4(normal * 0.5 + 0.5, 1.0);
+  normalOut = vec4(normal, 1.0);
 }

@@ -53,6 +53,7 @@ public:
     shadowMap.storage(1, GL_DEPTH_COMPONENT24,
                       gl::Texture::Size{SHADOW_MAP_SIZE, SHADOW_MAP_SIZE});
     shadowMap.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    shadowMap.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     shadowMapHandle = shadowMap.createHandle();
 
     shadowFbo.attachTexture(GL_DEPTH_ATTACHMENT, shadowMap.id(), 0);
@@ -83,7 +84,7 @@ public:
     for (int d = 0; d < directions.size(); ++d) {
       glm::mat4 shadowView =
           glm::lookAt(m.position, m.position + directions[d],
-                      d == 2 || d == 3 ? glm::vec3(0.0, 0.0, 1.0)
+                      d == 2 || d == 3 ? glm::vec3(0.0, 0.0, -1.0)
                                        : glm::vec3(0.0, -1.0, 0.0));
 
       glm::mat4 shadowViewProj = perspective * shadowView;
